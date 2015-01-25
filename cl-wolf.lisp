@@ -8,17 +8,14 @@
    (input :accessor input :initarg :input :initform (queue))
    (output-ports :accessor output-ports :initarg :output-ports :initform '(:out :error))
    (outgoing :accessor outgoing :initarg :outgoing :initform (make-instance 'connection-table))))
+
 (defclass container (part) 
   ((parts :accessor parts :initarg :parts :initform nil)
    (incoming :accessor incoming :initarg :incoming :initform (make-instance 'connection-table))))
-(defclass reactor (part)
-  ((body :accessor body :initarg :body :initform nil)))
-
 (defmethod add-part! ((self container) (new-child part))
   (push new-child (parts self))
   (setf (parent new-child) self)
   nil)
-
 (defmethod run! ((self container))
   (let ((msg (pull! (input self))))
     (when msg
@@ -26,20 +23,20 @@
        (lambda (c) 
 	 (broadcast! c msg))
        (dispatch (incoming self) (tag msg))))))
+
+(defclass reactor (part)
+  ((body :accessor body :initarg :body :initform nil)))
 (defmethod run! ((self reactor))
   (let ((msg (pull! (input self))))
     (when msg (run-with! (body self) (tag msg) (payload msg)))))
-
-(defmethod run-with! ((fn function) tag payload)
-  (funcall fn tag payload))
 
 (defclass connection-table ()
   ((connections :accessor connections :initform nil)))
 (defclass connection ()
   ((origin :accessor origin :initarg :origin :initform nil)
    (tag :accessor tag :initarg :tag)
-   (target-tag :accessor target-tag :initarg :target-tag)
-   (target :accessor target :initarg :target)))
+   (target :accessor target :initarg :target)
+   (target-tag :accessor target-tag :initarg :target-tag)))
 (defun conn (tag target-tag target)
   (make-instance 'connection :tag tag :target-tag target-tag :target target))
 
@@ -70,6 +67,9 @@
        (msg (target-tag conn) (payload m)))
    (input (target conn)))
   (run! (target conn)))
+
+(defmethod run-with! ((fn function) tag payload)
+  (funcall fn tag payload))
 
 (defmethod send! ((self part) tag payload)
   (push! (msg tag payload) (input self))
