@@ -75,3 +75,30 @@
   (push! (msg tag payload) (input self))
   (run! self)
   nil)
+
+(defmacro make-reactor (fn)
+  `(let ((self (make-instance 'reactor)))
+     (setf (body self) ,fn)
+     self))
+
+(defun process-connections (conns)
+  (flet ((single (clause)
+	   (destructuring-bind (sources targets) (split-sequence '-> clause)
+	     (loop for (part-name tag) in sources
+		for src = (if (eq part-name 'self) `(incoming ,part-name) part-name)
+		append (loop for (target-name target-tag) in targets
+			  for tgt = (if (eq target-name 'self) `(outgoing ,self) target-name)
+			  collect `(connect! ,src ,tag ,tgt ,target-tag))))))
+    (loop for c in conns append (single c))))
+
+(defmacro make-container ((&rest label/part-pairs) &body connections)
+  `(let ((self (make-instance 'container))
+	 ,@(mapcar (lambda (pair)
+		     (if (cdr pair)
+			 `(,(first pair) ,(second pair))
+			 `(,(first pair) (,(first pair)))))
+		   label/part-pairs))
+     ,@(mapcar (lambda (pair) `(add-part! self ,(car pair)))
+	       label/part-pairs)
+     ,@(process-connections connections)
+     self))
