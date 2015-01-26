@@ -3,10 +3,10 @@
 ;; ---> greeter ---> counter ---> printer
 ;;              \_____________|
 
-(defun mk-printer (&key (stream *standard-output*) (prefix "PRINTER -- "))
+(defun mk-printer (&key (stream *standard-output*) (template "PRINTER -- ~s : ~s"))
   (make-reactor
    (lambda (tag message)
-     (format stream "~a~s : ~s~%" prefix tag message))))
+     (format stream template tag message))))
 
 (defun mk-greeter (&key (template "Hello there, ~a!"))
   (make-reactor
@@ -38,7 +38,7 @@
 ;;               \____________||
 ;;               \___ counter _|
 
-(defun mk-splitter (&key (chunk-size 1) (send-remainder? t))
+(defun splitter (&key (chunk-size 1) (send-remainder? t))
   (make-reactor
    (lambda (tag message)
      (declare (ignore tag))
@@ -50,7 +50,7 @@
 	finally (when (and send-remainder? (>= j len) (> len i))
 		  (out! :out (subseq message i)))))))
 
-(defun mk-pairer ()
+(defun pairer ()
   (make-reactor
    (let ((cache nil))
      (lambda (tag message)
@@ -63,8 +63,8 @@
 
 (defparameter *test2*
   (make-container
-      ((splitter (mk-splitter))
-       (pairer (mk-pairer))
+      (splitter
+       pairer
        (counter (mk-counter))
        (printer (mk-printer)))
     ((self :in) -> (splitter :in))
