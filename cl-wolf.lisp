@@ -78,7 +78,10 @@
 
 (defmacro make-reactor (fn)
   `(let ((self (make-instance 'reactor)))
-     (setf (body self) ,fn)
+     (flet ((out! (tag payload)
+	      (broadcast! self (msg tag payload))))
+       (declare (ignorable #'out!))
+       (setf (body self) ,fn))
      self))
 
 (defun process-connections (conns)

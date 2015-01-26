@@ -12,14 +12,14 @@
   (make-reactor
    (lambda (tag message)
      (declare (ignore tag))
-     (broadcast! self (msg :out (format nil template message))))))
+     (out! :out (format nil template message)))))
 
 (defun mk-counter (&key (initial 0))
   (make-reactor
    (let ((ct initial))
      (lambda (tag messsage)
        (declare (ignore tag messsage))
-       (broadcast! self (msg :out (incf ct)))))))
+       (out! :out (incf ct))))))
 
 (defparameter *test*
   (make-container
@@ -46,9 +46,9 @@
 	for i from 0 by chunk-size
 	for j from chunk-size by chunk-size 
 	while (>= len j)
-	do (broadcast! g (msg :out (subseq message i j)))
+	do (out! :out (subseq message i j))
 	finally (when (and send-remainder? (>= j len) (> len i))
-		  (broadcast! g (msg :out (subseq message i))))))))
+		  (out! :out (subseq message i)))))))
 
 (defun mk-pairer ()
   (make-reactor
@@ -57,7 +57,7 @@
        (declare (ignore tag))
        (if cache
 	   (progn 
-	     (broadcast! g (msg :out (cons (first cache) message)))
+	     (out! :out (cons (first cache) message))
 	     (setf cache nil))
 	   (setf cache (list message)))))))
 
