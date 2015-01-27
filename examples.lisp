@@ -5,21 +5,15 @@
 
 (defun mk-printer (&key (stream *standard-output*) (template "PRINTER -- ~s : ~s~%"))
   (make-reactor
-   (lambda (tag message)
-     (format stream template tag message))))
+    (format stream template tag message)))
 
 (defun mk-greeter (&key (template "Hello there, ~a!"))
   (make-reactor
-   (lambda (tag message)
-     (declare (ignore tag))
-     (out! :out (format nil template message)))))
+    (out! :out (format nil template message))))
 
 (defun mk-counter (&key (initial 0))
-  (make-reactor
-   (let ((ct initial))
-     (lambda (tag messsage)
-       (declare (ignore tag messsage))
-       (out! :out (incf ct))))))
+  (let ((ct initial))
+    (make-reactor (out! :out (incf ct)))))
 
 (defun mk-test ()
   (make-container
@@ -42,26 +36,22 @@
 
 (defun splitter (&key (chunk-size 1) (send-remainder? t))
   (make-reactor
-   (lambda (tag message)
-     (declare (ignore tag))
-     (loop with len = (length message)
-	for i from 0 by chunk-size
-	for j from chunk-size by chunk-size 
-	while (>= len j)
-	do (out! :out (subseq message i j))
-	finally (when (and send-remainder? (>= j len) (> len i))
-		  (out! :out (subseq message i)))))))
+    (loop with len = (length message)
+       for i from 0 by chunk-size
+       for j from chunk-size by chunk-size 
+       while (>= len j)
+       do (out! :out (subseq message i j))
+       finally (when (and send-remainder? (>= j len) (> len i))
+		 (out! :out (subseq message i))))))
 
 (defun pairer ()
-  (make-reactor
-   (let ((cache nil))
-     (lambda (tag message)
-       (declare (ignore tag))
-       (if cache
-	   (progn 
-	     (out! :out (cons (first cache) message))
-	     (setf cache nil))
-	   (setf cache (list message)))))))
+  (let ((cache nil))
+    (make-reactor
+      (if cache
+	  (progn 
+	    (out! :out (cons (first cache) message))
+	    (setf cache nil))
+	  (setf cache (list message))))))
 
 (defun mk-test2 ()
   (make-container
@@ -84,94 +74,84 @@
 
 (defun http-listener ()
   (make-reactor
-   (lambda (tag message)
-     (declare (ignore tag message))
-     (let ((conns (list (socket-listen usocket:*wildcard-host* 4848 :reuse-address t))))
-       (unwind-protect
-	    (loop (loop for ready in (wait-for-input conns :ready-only t)
-		     do (if (typep ready 'stream-server-usocket)
-			    (push (socket-accept ready) conns)
-			    (loop with s = (socket-stream ready)
-			       with msg = (list)
-			       for ct from 1 for char = (read-char-no-hang s nil :eof)
-			       until (or (eq char :eof) (null char)) do (push char msg)
-			       finally (progn (setf conns (remove ready conns))
-					      (out! :out (list ready msg ct)))))))
-	 (mapc (lambda (sock)
-		 #+lispworks (loop for res = (socket-close sock)
-				until (or (null res) (eql -1 res)))
-		 #-lispworks (loop while (socket-close sock)))
-	       conns))))))
+    (let ((conns (list (socket-listen usocket:*wildcard-host* 4848 :reuse-address t))))
+      (unwind-protect
+	   (loop (loop for ready in (wait-for-input conns :ready-only t)
+		    do (if (typep ready 'stream-server-usocket)
+			   (push (socket-accept ready) conns)
+			   (loop with s = (socket-stream ready)
+			      with msg = (list)
+			      for ct from 1 for char = (read-char-no-hang s nil :eof)
+			      until (or (eq char :eof) (null char)) do (push char msg)
+			      finally (progn (setf conns (remove ready conns))
+					     (out! :out (list ready msg ct)))))))
+	(mapc (lambda (sock)
+		#+lispworks (loop for res = (socket-close sock)
+			       until (or (null res) (eql -1 res)))
+		#-lispworks (loop while (socket-close sock)))
+	      conns)))))
 
 (defun http-buffer ()
-  (make-reactor
-   (let ((buffer-table (make-hash-table)))
-     (flet ((get-buf (sock) (gethash sock buffer-table))
-	    (new-buf! (sock init len) (setf (gethash sock buffer-table) (cons init len)))
-	    (kill-buf! (sock) (remhash sock buffer-table))
-	    (complete? (str)
-	      (alexandria:starts-with-subseq (list #\linefeed #\return #\linefeed #\return) str)))
-       (lambda (tag message)
-	 (declare (ignore tag))
-	 (destructuring-bind (sock buffered len) message
-	   (let ((buf (get-buf sock)))
-	     (if buf
-		 (setf (car buf) (append buffered (car buf))
-		       (cdr buf) (+ (cdr buf) len))
-		 (setf buf (new-buf! sock buffered len)))
-	     (when (complete? (car buf))
-	       (out! :out (list sock (coerce (reverse (car buf)) 'string)))
-	       (kill-buf! sock)))))))))
+  (let ((buffer-table (make-hash-table)))
+    (flet ((get-buf (sock) (gethash sock buffer-table))
+	   (new-buf! (sock init len) (setf (gethash sock buffer-table) (cons init len)))
+	   (kill-buf! (sock) (remhash sock buffer-table))
+	   (complete? (str)
+	     (alexandria:starts-with-subseq (list #\linefeed #\return #\linefeed #\return) str)))
+      (make-reactor
+	(destructuring-bind (sock buffered len) message
+	  (let ((buf (get-buf sock)))
+	    (if buf
+		(setf (car buf) (append buffered (car buf))
+		      (cdr buf) (+ (cdr buf) len))
+		(setf buf (new-buf! sock buffered len)))
+	    (when (complete? (car buf))
+	      (out! :out (list sock (coerce (reverse (car buf)) 'string)))
+	      (kill-buf! sock))))))))
 
 (defmethod to-key ((str string)) (intern (string-upcase str) :keyword))
 
 (defun http-parser ()
   (make-reactor
-   (lambda (tag message)
-     (declare (ignore tag))
-     (handler-case
-	 (destructuring-bind (sock raw) message
-	   (let ((lines (cl-ppcre:split "\\r?\\n" raw)))
-	     (destructuring-bind (req-type path http-version) (cl-ppcre:split " " (pop lines))
-	       (declare (ignore http-version))
-	       (let* ((path-pieces (cl-ppcre:split "\\?" path))
-		      (resource (first path-pieces))
-		      (parameters (loop for pair in (cl-ppcre:split "&" (second path-pieces))
-				     for (name val) = (cl-ppcre:split "=" pair)
-				     collect (cons (to-key name) (or val ""))))
-		      (headers (loop for header = (pop lines) for (name value) = (cl-ppcre:split ": " header)
-				  until (null name) collect (cons (to-key name) value) )))
-		 (out! :out (list sock (to-key req-type) resource parameters headers))))))
-       (error () (out! :error (list :error self message)))))))
+    (handler-case
+	(destructuring-bind (sock raw) message
+	  (let ((lines (cl-ppcre:split "\\r?\\n" raw)))
+	    (destructuring-bind (req-type path http-version) (cl-ppcre:split " " (pop lines))
+	      (declare (ignore http-version))
+	      (let* ((path-pieces (cl-ppcre:split "\\?" path))
+		     (resource (first path-pieces))
+		     (parameters (loop for pair in (cl-ppcre:split "&" (second path-pieces))
+				    for (name val) = (cl-ppcre:split "=" pair)
+				    collect (cons (to-key name) (or val ""))))
+		     (headers (loop for header = (pop lines) for (name value) = (cl-ppcre:split ": " header)
+				 until (null name) collect (cons (to-key name) value) )))
+		(out! :out (list sock (to-key req-type) resource parameters headers))))))
+      (error () (out! :error (list :error self message))))))
 
 (defun http-hello ()
   (make-reactor
-   (lambda (tag message)
-     (declare (ignore tag))
-     (destructuring-bind (sock &rest stuff) message
-       (declare (ignore stuff))
-       (out! :out (list sock
-			(list "HTTP/1.1 200 OK"
-			      "Server: k"
-			      "Content-Type: text/html"
-			      ""
-			      "<html><body>Hello, world!</body></html>"
-			      "")
-			t))))))
+    (destructuring-bind (sock &rest stuff) message
+      (declare (ignore stuff))
+      (out! :out (list sock
+		       (list "HTTP/1.1 200 OK"
+			     "Server: k"
+			     "Content-Type: text/html"
+			     ""
+			     "<html><body>Hello, world!</body></html>"
+			     "")
+		       t)))))
 
 (defun http-writer ()
   (make-reactor
-   (lambda (tag message)
-     (declare (ignore tag))
-     (destructuring-bind (sock response close?) message
-       (ignore-errors
-	 (loop with s = (socket-stream sock) for ln in response
-	    do (progn (write-string ln s)
-		      (write-char #\return s)
-		      (write-char #\linefeed s))
-	    finally (force-output s)))
-       (when close?
-	 (ignore-errors (socket-close sock)))))))
+    (destructuring-bind (sock response close?) message
+      (ignore-errors
+	(loop with s = (socket-stream sock) for ln in response
+	   do (progn (write-string ln s)
+		     (write-char #\return s)
+		     (write-char #\linefeed s))
+	   finally (force-output s)))
+      (when close?
+	(ignore-errors (socket-close sock))))))
 
 (defun mk-test3 ()
   (make-container
@@ -204,3 +184,17 @@
 ;; 
 ;; "))
 ;;   (send! *test3* :in (list :sock-tag (coerce (reverse get-req) 'list) (length get-req))))
+
+(defun pull-pairer ()
+  (make-deactor 
+    (out! :out (cons (get! :a) (get! :b)))))
+
+(defun mk-pull-test ()
+  (make-container
+      ((a (pull-pairer))
+       (printer (mk-printer)))
+    ((self :a) -> (a :a))
+    ((self :b) -> (a :b))
+    ((a :out) -> (printer :in))))
+
+(defparameter *pull-test* (mk-pull-test))

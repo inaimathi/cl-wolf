@@ -16,7 +16,13 @@
 
 (defmethod run! ((self reactor))
   (let ((msg (pop! (input self))))
-    (when msg (run-with! (body self) (tag msg) (payload msg)))))
+    (when msg (funcall (body self) (tag msg) (payload msg)))))
+
+(defmethod run! ((self deactor))
+  (when (funcall (guard self) self)
+    (apply (body self) 
+	   (loop for m in (expecting self) 
+	      collect (payload (pull! (input self) m))))))
 
 ;;;;;;;;;; Connection and dispatch
 (defun conn (tag target-tag target)
@@ -50,9 +56,6 @@
 
 ;;;;;;;;;; Sugar
 ;;;;; Runtime/debugging sugar
-(defmethod run-with! ((fn function) tag payload)
-  (funcall fn tag payload))
-
 (defmethod send! ((self part) tag payload)
   (push! (msg tag payload) (input self))
   (run! self)
@@ -60,12 +63,15 @@
 
 ;;;;; Definition sugar
 ;;; Basic reactors
-(defmacro make-reactor (fn)
+(defmacro make-reactor (&body body)
   `(let ((self (make-instance 'reactor)))
      (flet ((out! (tag payload)
 	      (broadcast! self (msg tag payload))))
        (declare (ignorable #'out!))
-       (setf (body self) ,fn))
+       (setf (body self) 
+	     (lambda (tag message)
+	       (declare (ignorable tag message))
+	       ,@body)))
      self))
 
 ;;; Basic containers
@@ -90,3 +96,41 @@
 	       label/part-pairs)
      ,@(process-connections connections)
      self))
+
+;;; Deactors (faux-blocking reactors)
+(defun process-get!-calls (tree)
+  (let ((syms nil)
+	(port-list nil)
+	(counts (make-hash-table)))
+    (labels ((recur (thing)
+	       (cond ((null thing) nil)
+		     ((atom thing) thing)
+		     ((eq 'get! (car thing))
+		      (let ((new (gensym)))
+			(push (list new thing) syms)
+			(push (cadr thing) port-list)
+			(incf (gethash (cadr thing) counts 0))
+			new))
+		     (t (cons (recur (car thing))
+			      (recur (cdr thing)))))))
+      (let ((processed (recur tree)))
+	(values
+	 `(lambda (self)
+	    (and ,@(loop for k being the hash-keys of counts
+		      for v being the hash-values of counts
+		      collect `(>= (length-of (input self) ,k) ,v))))
+	 `(lambda ,(mapcar #'car (reverse syms))
+	    ,@processed)
+	 (reverse port-list))))))
+
+(defmacro make-deactor (&body body)
+  (multiple-value-bind (guard final-body ports) (process-get!-calls body)
+    `(let ((self (make-instance 'deactor)))
+       (flet ((out! (tag payload)
+		(broadcast! self (msg tag payload))))
+	 (declare (ignorable #'out!))
+	 (setf (body self) ,final-body
+	       (input self) (queue-table (list ,@ports))
+	       (guard self) ,guard
+	       (expecting self) (list ,@ports)))
+       self)))

@@ -30,13 +30,19 @@
   ((table :accessor table :initform (make-hash-table :test 'equal))))
 
 (defmethod push! ((msg message) (qt queue-table))
-  (let ((q (gethash (tag msg) qt)))
+  (let ((q (gethash (tag msg) (table qt))))
     (when q (push! msg q))))
 
 (defmethod pull! ((qt queue-table) tag)
-  (let ((q (gethash tag qt)))
+  (let ((q (gethash tag (table qt))))
     (when q (pop! q))))
 
 (defmethod length-of ((qt queue-table) tag)
-  (let ((q (gethash tag qt)))
+  (let ((q (gethash tag (table qt))))
     (if q (len q) 0)))
+
+(defun queue-table (keys)
+  (let ((qt (make-instance 'queue-table)))
+    (loop for k in keys
+       do (setf (gethash k (table qt)) (queue)))
+    qt))

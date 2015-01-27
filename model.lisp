@@ -16,6 +16,12 @@
 (defclass reactor (part)
   ((body :accessor body :initarg :body :initform nil)))
 
+(defclass deactor (part)
+  ((body :accessor body :initarg :body :initform nil)
+   (input :initform nil)
+   (expecting :accessor expecting :initarg :expecting :initform nil)
+   (guard :accessor guard :initarg :ready-fn :initform (constantly nil))))
+
 ;;;;;;;;;; Connection and dispatch
 (defclass connection-table ()
   ((connections :accessor connections :initform nil)))
