@@ -7,6 +7,7 @@
   :license "Specify license here"
   :depends-on (#:split-sequence #:usocket #:cl-ppcre #:alexandria)
   :components ((:file "package")
+	       (:file "model")
 	       (:file "input-structures")
                (:file "cl-wolf")))
 
