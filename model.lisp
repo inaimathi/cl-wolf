@@ -30,8 +30,12 @@
    (tag :accessor tag :initarg :tag)
    (target :accessor target :initarg :target)
    (target-tag :accessor target-tag :initarg :target-tag)))
+(defun conn (tag target-tag target)
+  (make-instance 'connection :tag tag :target-tag target-tag :target target))
 
 ;;;;;;;;;; Messages
 (defclass message ()
   ((tag :accessor tag :initarg :tag)
    (payload :accessor payload :initarg :payload)))
+(defun msg (tag payload)
+  (make-instance 'message :tag tag :payload payload))

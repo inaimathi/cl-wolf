@@ -4,19 +4,19 @@
 ;;              \_____________|
 
 (defun mk-printer (&key (stream *standard-output*) (template "PRINTER -- ~s : ~s~%"))
-  (make-reactor
+  (reactor
     (format stream template tag message)))
 
 (defun mk-greeter (&key (template "Hello there, ~a!"))
-  (make-reactor
+  (reactor
     (out! :out (format nil template message))))
 
 (defun mk-counter (&key (initial 0))
   (let ((ct initial))
-    (make-reactor (out! :out (incf ct)))))
+    (reactor (out! :out (incf ct)))))
 
 (defun mk-test ()
-  (make-container
+  (container
       ((greeter (mk-greeter))
        (counter (mk-counter))
        (printer (mk-printer)))
@@ -35,7 +35,7 @@
 ;;               \___ counter _|
 
 (defun splitter (&key (chunk-size 1) (send-remainder? t))
-  (make-reactor
+  (reactor
     (loop with len = (length message)
        for i from 0 by chunk-size
        for j from chunk-size by chunk-size 
@@ -46,7 +46,7 @@
 
 (defun pairer ()
   (let ((cache nil))
-    (make-reactor
+    (reactor
       (if cache
 	  (progn 
 	    (out! :out (cons (first cache) message))
@@ -54,7 +54,7 @@
 	  (setf cache (list message))))))
 
 (defun mk-test2 ()
-  (make-container
+  (container
       (splitter
        pairer
        (counter (mk-counter))
@@ -73,7 +73,7 @@
 ;; ---> buffer ---> parser ---> router ---> writer
 
 (defun http-listener ()
-  (make-reactor
+  (reactor
     (let ((conns (list (socket-listen usocket:*wildcard-host* 4848 :reuse-address t))))
       (unwind-protect
 	   (loop (loop for ready in (wait-for-input conns :ready-only t)
@@ -98,7 +98,7 @@
 	   (kill-buf! (sock) (remhash sock buffer-table))
 	   (complete? (str)
 	     (alexandria:starts-with-subseq (list #\linefeed #\return #\linefeed #\return) str)))
-      (make-reactor
+      (reactor
 	(destructuring-bind (sock buffered len) message
 	  (let ((buf (get-buf sock)))
 	    (if buf
@@ -112,7 +112,7 @@
 (defmethod to-key ((str string)) (intern (string-upcase str) :keyword))
 
 (defun http-parser ()
-  (make-reactor
+  (reactor
     (handler-case
 	(destructuring-bind (sock raw) message
 	  (let ((lines (cl-ppcre:split "\\r?\\n" raw)))
@@ -129,7 +129,7 @@
       (error () (out! :error (list :error self message))))))
 
 (defun http-hello ()
-  (make-reactor
+  (reactor
     (destructuring-bind (sock &rest stuff) message
       (declare (ignore stuff))
       (out! :out (list sock
@@ -142,7 +142,7 @@
 		       t)))))
 
 (defun http-writer ()
-  (make-reactor
+  (reactor
     (destructuring-bind (sock response close?) message
       (ignore-errors
 	(loop with s = (socket-stream sock) for ln in response
@@ -154,7 +154,7 @@
 	(ignore-errors (socket-close sock))))))
 
 (defun mk-test3 ()
-  (make-container
+  (container
       (http-listener
        http-buffer 
        http-parser
@@ -186,11 +186,11 @@
 ;;   (send! *test3* :in (list :sock-tag (coerce (reverse get-req) 'list) (length get-req))))
 
 (defun pull-pairer ()
-  (make-deactor 
+  (deactor 
     (out! :out (cons (get! :a) (get! :b)))))
 
 (defun mk-pull-test ()
-  (make-container
+  (container
       ((a (pull-pairer))
        (printer (mk-printer)))
     ((self :a) -> (a :a))
@@ -198,3 +198,10 @@
     ((a :out) -> (printer :in))))
 
 (defparameter *pull-test* (mk-pull-test))
+
+(send! *pull-test* :a 56)
+(send! *pull-test* :a 57)
+(send! *pull-test* :a 58)
+(send! *pull-test* :b 59)
+(send! *pull-test* :b 60)
+(send! *pull-test* :b 61)

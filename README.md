@@ -14,3 +14,9 @@ Together, those three will allow a great deal of flexibility in system design, w
 - **The sequencing of messages**. If a single part is connected to some number of other parts, their order of processing should not be assumed.
 - **Uniformity of implementation**. There is no reason for all parts of the system to be written in the same language. I'm still working out the implications, but it should theoretically be possible to build completely heterogenous systems.
 - **Full Diagrammatic Representability**. Working with systems like these has convinced me that THERE. WILL. ALWAYS. be edge cases. Conceptual little nooks and crannies where any given visual representation breaks down either to a) a massively repetitive set of components OR b) some special-purpose notation that describes said corner-case elegantly and correctly, but that implicitly assumes familiarity in the reader by hiding certain information. Neither of these is acceptable to me. So, in the absence of acceptable solutions, I'll take option c) diagrammatic representation where it helps, coupled with textual representation anywhere else.
+
+### TODO
+
+- start getting make-reactor/make-deactor/make-container to track their input and output ports
+- think about deepcast! vs broadcast! (and actually, what we've got at the moment is deepcast!, so it's misnamed to boot)
+- think about getting output structures together. Something that lets a reactor finish out what it's doing before the next thing runs (right now, we've got the curious situation where "broad"cast targets get to move ahead of their parent)

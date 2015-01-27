@@ -25,9 +25,6 @@
 	      collect (payload (pull! (input self) m))))))
 
 ;;;;;;;;;; Connection and dispatch
-(defun conn (tag target-tag target)
-  (make-instance 'connection :tag tag :target-tag target-tag :target target))
-
 (defmethod connect! ((from connection-table) src-tag (target part) target-tag)
   (push (conn src-tag target-tag target) (connections from))
   nil)
@@ -41,9 +38,6 @@
   (remove-if-not (lambda (s) (equal tag s)) (connections conns) :key #'tag))
 
 ;;;;;;;;;; Messages
-(defun msg (tag payload)
-  (make-instance 'message :tag tag :payload payload))
-
 (defmethod broadcast! ((self part) (m message))
   (mapc (lambda (conn) (broadcast! conn m)) (dispatch self (tag m))))
 (defmethod broadcast! ((conn connection) (m message))
@@ -63,7 +57,7 @@
 
 ;;;;; Definition sugar
 ;;; Basic reactors
-(defmacro make-reactor (&body body)
+(defmacro reactor (&body body)
   `(let ((self (make-instance 'reactor)))
      (flet ((out! (tag payload)
 	      (broadcast! self (msg tag payload))))
@@ -85,7 +79,7 @@
 			  collect `(connect! ,src ,tag ,tgt ,target-tag))))))
     (loop for c in conns append (single c))))
 
-(defmacro make-container ((&rest label/part-pairs) &body connections)
+(defmacro container ((&rest label/part-pairs) &body connections)
   `(let ((self (make-instance 'container))
 	 ,@(mapcar (lambda (pair)
 		     (if (symbolp pair)
@@ -123,7 +117,7 @@
 	    ,@processed)
 	 (reverse port-list))))))
 
-(defmacro make-deactor (&body body)
+(defmacro deactor (&body body)
   (multiple-value-bind (guard final-body ports) (process-get!-calls body)
     `(let ((self (make-instance 'deactor)))
        (flet ((out! (tag payload)
