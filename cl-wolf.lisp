@@ -93,7 +93,7 @@
        self)))
 
 ;;; Push and pull reactors
-(defun find-reactor-ports (body)
+(defun find-reactor-out-ports (body)
   (let ((ports nil))
     (labels ((recur (thing)
 	       (cond ((atom thing) nil)
@@ -139,7 +139,7 @@
 	       (declare (ignorable tag message))
 	       ,@body)
 	     (output-ports self)
-	     (list ,@(find-reactor-ports body))))
+	     (list ,@(find-reactor-out-ports body))))
      self))
 
 (defun deactor-template (body)
@@ -151,7 +151,9 @@
 	 (setf (body self) ,final-body
 	       (input self) (queue-table (list ,@ports))
 	       (guard self) ,guard
-	       (expecting self) (list ,@ports)))
+	       (expecting self) (list ,@ports)
+	       (input-ports self) (list ,@(remove-duplicates ports))
+	       (output-ports self) (list ,@(find-reactor-out-ports body))))
        self)))
 
 (defun tree-find (elem tree &key (test #'eq))
