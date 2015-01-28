@@ -1,5 +1,6 @@
 (in-package :cl-wolf)
 
+;;;;; Basic Hello World
 ;; ---> greeter ---> counter ---> printer
 ;;              \_____________|
 
@@ -30,6 +31,7 @@
 (send! *test* :in "dxnn")
 (send! *test* :in "guitarvydas")
 
+;;;;; More elaborate Hello World
 ;; ---> splitter ---> pairer ---> printer
 ;;               \____________||
 ;;               \___ counter _|
@@ -70,7 +72,30 @@
 (send! *test2* :in "Blahs")
 (send! *test2* :in "Blahs")
 
+;;;;; Pull-based Hello World
+(defun pull-pairer ()
+  (deactor (out! :out (cons (get! :a) (get! :b)))))
+
+(defun mk-pull-test ()
+  (container
+      ((a (pull-pairer))
+       (printer (mk-printer)))
+    ((self :a) -> (a :a))
+    ((self :b) -> (a :b))
+    ((a :out) -> (printer :in))))
+
+(defparameter *pull-test* (mk-pull-test))
+
+(send! *pull-test* :a 56)
+(send! *pull-test* :a 57)
+(send! *pull-test* :a 58)
+(send! *pull-test* :b 59)
+(send! *pull-test* :b 60)
+(send! *pull-test* :b 61)
+
+;;;;; Basic HTTP server
 ;; ---> buffer ---> parser ---> router ---> writer
+;;           \________\___________\____________\__---> printer
 
 (defun http-listener ()
   (reactor
@@ -184,24 +209,3 @@
 ;; 
 ;; "))
 ;;   (send! *test3* :in (list :sock-tag (coerce (reverse get-req) 'list) (length get-req))))
-
-(defun pull-pairer ()
-  (deactor 
-    (out! :out (cons (get! :a) (get! :b)))))
-
-(defun mk-pull-test ()
-  (container
-      ((a (pull-pairer))
-       (printer (mk-printer)))
-    ((self :a) -> (a :a))
-    ((self :b) -> (a :b))
-    ((a :out) -> (printer :in))))
-
-(defparameter *pull-test* (mk-pull-test))
-
-(send! *pull-test* :a 56)
-(send! *pull-test* :a 57)
-(send! *pull-test* :a 58)
-(send! *pull-test* :b 59)
-(send! *pull-test* :b 60)
-(send! *pull-test* :b 61)
