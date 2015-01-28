@@ -104,14 +104,14 @@
       (recur body)
       (remove-duplicates ports))))
 
-(defun process-get!-calls (tree)
+(defun process-in!-calls (tree)
   (let ((syms nil)
 	(port-list nil)
 	(counts (make-hash-table)))
     (labels ((recur (thing)
 	       (cond ((null thing) nil)
 		     ((atom thing) thing)
-		     ((eq 'get! (car thing))
+		     ((eq 'in! (car thing))
 		      (let ((new (gensym)))
 			(push (list new thing) syms)
 			(push (cadr thing) port-list)
@@ -143,7 +143,7 @@
      self))
 
 (defun deactor-template (body)
-  (multiple-value-bind (guard final-body ports) (process-get!-calls body)
+  (multiple-value-bind (guard final-body ports) (process-in!-calls body)
     `(let ((self (make-instance 'deactor)))
        (flet ((out! (tag payload)
 		(deepcast! self (msg tag payload))))
@@ -165,6 +165,6 @@
   nil)
 
 (defmacro reactor (&body body)
-  (if (tree-find 'get! body)
+  (if (tree-find 'in! body)
       (deactor-template body)
       (reactor-template body)))

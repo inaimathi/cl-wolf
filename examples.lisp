@@ -72,7 +72,7 @@
 
 ;;;;; Pull-based Hello World
 (defun pull-pairer ()
-  (reactor (out! :out (cons (get! :a) (get! :b)))))
+  (reactor (out! :out (cons (in! :a) (in! :b)))))
 
 (defun mk-pull-test ()
   (container
