@@ -56,18 +56,6 @@
   nil)
 
 ;;;;; Definition sugar
-;;; Basic reactors
-(defmacro reactor (&body body)
-  `(let ((self (make-instance 'reactor)))
-     (flet ((out! (tag payload)
-	      (broadcast! self (msg tag payload))))
-       (declare (ignorable #'out!))
-       (setf (body self) 
-	     (lambda (tag message)
-	       (declare (ignorable tag message))
-	       ,@body)))
-     self))
-
 ;;; Basic containers
 (defun process-connections (conns)
   (flet ((single (clause)
@@ -79,19 +67,43 @@
 			  collect `(connect! ,src ,tag ,tgt ,target-tag))))))
     (loop for c in conns append (single c))))
 
-(defmacro container ((&rest label/part-pairs) &body connections)
-  `(let ((self (make-instance 'container))
-	 ,@(mapcar (lambda (pair)
-		     (if (symbolp pair)
-			 `(,pair (,pair))
-			 `(,(first pair) ,(second pair))))
-		   label/part-pairs))
-     ,@(mapcar (lambda (pair) `(add-part! self ,(if (symbolp pair) pair (car pair))))
-	       label/part-pairs)
-     ,@(process-connections connections)
-     self))
+(defun find-container-ports (conns)
+  (flet ((ports-in (lst)
+	   (loop for (part port) in lst
+	      when (eq part 'self) collect port)))
+    (loop for c in conns for (sources targets) = (split-sequence '-> c)
+       append (ports-in sources) into ins
+       append (ports-in targets) into outs
+       finally (return (values (remove-duplicates ins) 
+			       (remove-duplicates outs))))))
 
-;;; Deactors (faux-blocking reactors)
+(defmacro container ((&rest label/part-pairs) &body connections)
+  (multiple-value-bind (ins outs) (find-container-ports connections)
+    `(let ((self (make-instance 'container))
+	   ,@(mapcar (lambda (pair)
+		       (if (symbolp pair)
+			   `(,pair (,pair))
+			   `(,(first pair) ,(second pair))))
+		     label/part-pairs))
+       (setf (input-ports self) (list ,@ins)
+	     (output-ports self) (list ,@outs))
+       ,@(mapcar (lambda (pair) `(add-part! self ,(if (symbolp pair) pair (car pair))))
+		 label/part-pairs)
+       ,@(process-connections connections)
+       self)))
+
+;;; Push and pull reactors
+(defun find-reactor-ports (body)
+  (let ((ports nil))
+    (labels ((recur (thing)
+	       (cond ((atom thing) nil)
+		     ((eq 'out! (car thing))
+		      (push (second thing) ports))
+		     (t (recur (car thing))
+			(recur (cdr thing))))))
+      (recur body)
+      (remove-duplicates ports))))
+
 (defun process-get!-calls (tree)
   (let ((syms nil)
 	(port-list nil)
@@ -117,7 +129,20 @@
 	    ,@processed)
 	 (reverse port-list))))))
 
-(defmacro deactor (&body body)
+(defun reactor-template (body)
+  `(let ((self (make-instance 'reactor)))
+     (flet ((out! (tag payload)
+	      (broadcast! self (msg tag payload))))
+       (declare (ignorable #'out!))
+       (setf (body self) 
+	     (lambda (tag message)
+	       (declare (ignorable tag message))
+	       ,@body)
+	     (output-ports self)
+	     (list ,@(find-reactor-ports body))))
+     self))
+
+(defun deactor-template (body)
   (multiple-value-bind (guard final-body ports) (process-get!-calls body)
     `(let ((self (make-instance 'deactor)))
        (flet ((out! (tag payload)
@@ -128,3 +153,16 @@
 	       (guard self) ,guard
 	       (expecting self) (list ,@ports)))
        self)))
+
+(defun tree-find (elem tree &key (test #'eq))
+  (subst-if 
+   nil (lambda (thing) 
+	 (when (funcall test elem thing)
+	   (return-from tree-find t)))
+   tree)
+  nil)
+
+(defmacro reactor (&body body)
+  (if (tree-find 'get! body)
+      (deactor-template body)
+      (reactor-template body)))
