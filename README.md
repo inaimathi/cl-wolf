@@ -17,8 +17,5 @@ Together, those three will allow a great deal of flexibility in system design, w
 
 ### TODO
 
-- start getting make-reactor/make-deactor/make-container to track their input and output ports
-- think about deepcast! vs broadcast! (and actually, what we've got at the moment is deepcast!, so it's misnamed to boot)
-- think about getting output structures together. Something that lets a reactor finish out what it's doing before the next thing runs (right now, we've got the curious situation where "broad"cast targets get to move ahead of their parent)
-- since you're already doing macroexpansion-time processing, you may as well have only one `reactor` primitive, and make the decision of whether it's a `reactor` or `deactor` based on whether there are any `get!` calls.
+- think about deepcast! vs broadcast! (how do we tell when we want each? what are the actual pros/cons?)
 - think about implementing a reader macro for those ascii-art diagram comments. They may in fact be compileable

@@ -11,7 +11,7 @@
     (when msg
       (mapc 
        (lambda (c) 
-	 (broadcast! c msg))
+	 (deepcast! c msg))
        (dispatch (incoming self) (tag msg))))))
 
 (defmethod run! ((self reactor))
@@ -38,9 +38,9 @@
   (remove-if-not (lambda (s) (equal tag s)) (connections conns) :key #'tag))
 
 ;;;;;;;;;; Messages
-(defmethod broadcast! ((self part) (m message))
-  (mapc (lambda (conn) (broadcast! conn m)) (dispatch self (tag m))))
-(defmethod broadcast! ((conn connection) (m message))
+(defmethod deepcast! ((self part) (m message))
+  (mapc (lambda (conn) (deepcast! conn m)) (dispatch self (tag m))))
+(defmethod deepcast! ((conn connection) (m message))
   (push! 
    (if (eq (tag conn) (target-tag conn))
        m 
@@ -132,7 +132,7 @@
 (defun reactor-template (body)
   `(let ((self (make-instance 'reactor)))
      (flet ((out! (tag payload)
-	      (broadcast! self (msg tag payload))))
+	      (deepcast! self (msg tag payload))))
        (declare (ignorable #'out!))
        (setf (body self) 
 	     (lambda (tag message)
@@ -146,7 +146,7 @@
   (multiple-value-bind (guard final-body ports) (process-get!-calls body)
     `(let ((self (make-instance 'deactor)))
        (flet ((out! (tag payload)
-		(broadcast! self (msg tag payload))))
+		(deepcast! self (msg tag payload))))
 	 (declare (ignorable #'out!))
 	 (setf (body self) ,final-body
 	       (input self) (queue-table (list ,@ports))
