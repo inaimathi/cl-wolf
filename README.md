@@ -22,3 +22,4 @@ Together, those three will allow a great deal of flexibility in system design, w
 - implement two versions of pulling reactors:
 	1. queue intervening requests
 	2. drop intervening requests
+- figure out what to do about reactors that pull in a loop (or decide to disallow them)
