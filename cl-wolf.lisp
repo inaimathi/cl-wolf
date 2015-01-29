@@ -24,6 +24,18 @@
 	   (loop for m in (expecting self) 
 	      collect (payload (pull! (input self) m))))))
 
+;;;;;;;;;; The Scheduler
+(defparameter *work* (queue))
+(defun run-system! ()
+  (run! (pop! *work*))
+  (unless (empty? *work*) (run-system!)))
+
+(defmethod send! ((self part) tag payload)
+  (push! (msg tag payload) (input self))
+  (push! self *work*)
+  (run-system!)
+  nil)
+
 ;;;;;;;;;; Connection and dispatch
 (defmethod connect! ((from connection-table) src-tag (target part) target-tag)
   (push (conn src-tag target-tag target) (connections from))
@@ -46,16 +58,9 @@
        m 
        (msg (target-tag conn) (payload m)))
    (input (target conn)))
-  (run! (target conn)))
+  (push! (target conn) *work*))
 
 ;;;;;;;;;; Sugar
-;;;;; Runtime/debugging sugar
-(defmethod send! ((self part) tag payload)
-  (push! (msg tag payload) (input self))
-  (run! self)
-  nil)
-
-;;;;; Definition sugar
 ;;; Basic containers
 (defun process-connections (conns)
   (flet ((single (clause)
@@ -129,32 +134,32 @@
 	    ,@processed)
 	 (reverse port-list))))))
 
-(defun reactor-template (body)
-  `(let ((self (make-instance 'reactor)))
+(defun with-self (self body)
+  `(let ((self ,self))
      (flet ((out! (tag payload)
 	      (deepcast! self (msg tag payload))))
        (declare (ignorable #'out!))
-       (setf (body self) 
-	     (lambda (tag message)
-	       (declare (ignorable tag message))
-	       ,@body)
-	     (output-ports self)
-	     (list ,@(find-reactor-out-ports body))))
+       ,body)
      self))
+
+(defun reactor-template (body)
+  (with-self '(make-instance 'reactor)
+    `(setf (body self) 
+	   (lambda (tag message)
+	     (declare (ignorable tag message))
+	     ,@body)
+	   (output-ports self)
+	   (list ,@(find-reactor-out-ports body)))))
 
 (defun deactor-template (body)
   (multiple-value-bind (guard final-body ports) (process-in!-calls body)
-    `(let ((self (make-instance 'deactor)))
-       (flet ((out! (tag payload)
-		(deepcast! self (msg tag payload))))
-	 (declare (ignorable #'out!))
-	 (setf (body self) ,final-body
-	       (input self) (queue-table (list ,@ports))
-	       (guard self) ,guard
-	       (expecting self) (list ,@ports)
-	       (input-ports self) (list ,@(remove-duplicates ports))
-	       (output-ports self) (list ,@(find-reactor-out-ports body))))
-       self)))
+    (with-self '(make-instance 'deactor)
+      `(setf (body self) ,final-body
+	     (input self) (queue-table (list ,@ports))
+	     (guard self) ,guard
+	     (expecting self) (list ,@ports)
+	     (input-ports self) (list ,@(remove-duplicates ports))
+	     (output-ports self) (list ,@(find-reactor-out-ports body))))))
 
 (defun tree-find (elem tree &key (test #'eq))
   (subst-if 

@@ -92,8 +92,8 @@
 (send! *pull-test* :b 61)
 
 ;;;;; Basic HTTP server
-;; ---> buffer ---> parser ---> router ---> writer
-;;           \________\___________\____________\__---> printer
+;; ---> buffer ---> parser ---> router ---> http-response ---> writer
+;;           \________\___________\______________\_______________\__---> printer
 
 (defun http-listener (&key (ip usocket:*wildcard-host*) (port 4848) (reuse-address t))
   (reactor
@@ -154,14 +154,20 @@
   (reactor
     (destructuring-bind (sock &rest stuff) message
       (declare (ignore stuff))
-      (out! :out (list sock
-		       (list "HTTP/1.1 200 OK"
-			     "Server: k"
-			     "Content-Type: text/html"
-			     ""
-			     "<html><body>Hello, world!</body></html>"
-			     "")
-		       t)))))
+      (out! :out (list sock (list "200 OK" "text/html" "<html><body>Hello, world!</body></html>"))))))
+
+(defun http-response ()
+  (flet ((cat (a b) (concatenate 'string a b)))
+    (reactor
+      (destructuring-bind (sock (http-code content-type body)) message
+	(out! :out (list sock
+			 (list (cat "HTTP/1.0 " http-code)
+			       "Server: k"
+			       (cat "Content-Type: " content-type)
+			       ""
+			       body
+			       "")
+			 t))))))
 
 (defun http-writer ()
   (reactor
@@ -182,12 +188,14 @@
        http-parser
        http-hello
        http-writer
-       (tap (mk-printer)))
+       (tap (mk-printer))
+       (res (http-response)))
     ((self :in) -> (http-listener :in) (tap :in))
     ((http-listener :out) -> (http-buffer :in) (tap :in))
     ((http-buffer :out) -> (http-parser :in) (tap :in))
     ((http-parser :out) -> (http-hello :in) (tap :in))
-    ((http-hello :out) -> (http-writer :in) (tap :in))))
+    ((http-hello :out) -> (res :in) (tap :in))
+    ((res :out) -> (http-writer :in) (tap :in))))
 
 (defparameter *server* (mk-test3))
 
@@ -222,3 +230,30 @@
 ;;  :in "A"
 ;;  :in "B"
 ;;  :in "C")
+
+
+;;;;; Basic loop test
+;; ---> countdown ---> printer
+;;  |          \___--> decrement
+;;  |_____________________/
+
+(defun countdown (&key (til 0))
+  (reactor 
+    (when (> message til)
+      (out! :out message))))
+
+(defun decrement (&key (by 1))
+  (reactor (out! :out (- message by))))
+
+(defun mk-loop ()
+  (container
+      (countdown
+       (dec (decrement))
+       (tap (mk-printer)))
+    ((self :in) -> (countdown :in))
+    ((countdown :out) -> (dec :in) (tap :in))
+    ((dec :out) -> (countdown :in))))
+
+(defparameter *loop-test* (mk-loop))
+
+(send! *loop-test* :in 10)

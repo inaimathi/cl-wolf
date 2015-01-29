@@ -19,3 +19,6 @@ Together, those three will allow a great deal of flexibility in system design, w
 
 - think about deepcast! vs broadcast! (how do we tell when we want each? what are the actual pros/cons?)
 - think about implementing a reader macro for those ascii-art diagram comments. They may in fact be compileable
+- implement two versions of pulling reactors:
+	1. queue intervening requests
+	2. drop intervening requests

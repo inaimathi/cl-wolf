@@ -5,7 +5,7 @@
    (last-cons :accessor last-cons :initform nil)
    (len :accessor len :initform 0)))
 
-(defmethod push! ((msg message) (q queue))
+(defmethod push! (msg (q queue))
   (let ((m (list msg)))
     (if (empty? q)
 	(setf (messages q) m
