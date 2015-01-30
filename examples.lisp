@@ -71,6 +71,8 @@
 (send! *test2* :in "Blahs")
 
 ;;;;; Pull-based Hello World
+;; :a ---> :a (a (pull-pairer)) :out ---> :in printer
+;; :b ---> :b a
 (defun pull-pairer ()
   (reactor (out! :out (cons (in! :a) (in! :b)))))
 

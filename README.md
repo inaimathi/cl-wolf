@@ -23,3 +23,5 @@ Together, those three will allow a great deal of flexibility in system design, w
 	1. queue intervening requests
 	2. drop intervening requests
 - figure out what to do about reactors that pull in a loop (or decide to disallow them)
+- figure out some way to get return values out of a running system. Suggest tap parts that forward messages, but collect all throughput into some return structure
+- more work on the ascii parsers

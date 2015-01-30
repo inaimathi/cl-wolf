@@ -26,14 +26,13 @@
 
 ;;;;;;;;;; The Scheduler
 (defparameter *work* (queue))
-(defun run-system! ()
-  (run! (pop! *work*))
-  (unless (empty? *work*) (run-system!)))
+(defmethod run-system! ((q queue))
+  (loop until (empty? q) do (run! (pop! q))))
 
 (defmethod send! ((self part) tag payload)
   (push! (msg tag payload) (input self))
   (push! self *work*)
-  (run-system!)
+  (run-system! *work*)
   nil)
 
 ;;;;;;;;;; Connection and dispatch
