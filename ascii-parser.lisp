@@ -26,7 +26,6 @@
   (reactor (out! :out (split-sequence:split-sequence 
 		       #\newline message 
 		       :remove-empty-subseqs t))))
-
 (defun root-finder ()
   (reactor
     (out! :out

@@ -85,6 +85,7 @@
 ;;;;; Pull-based Hello World
 ;; :a ---> :a (pairer (pull-pairer)) :out ---> :in printer
 ;; :b ---> :b pairer
+
 (defun pull-pairer ()
   (reactor (out! :out (cons (in! :a) (in! :b)))))
 
