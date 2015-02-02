@@ -5,8 +5,9 @@
   ((origin :accessor origin :initarg :origin :initform nil)
    (parent :accessor parent :initarg :parent :initform nil)
    (input-ports :accessor input-ports :initarg :input-ports :initform '(:in))
-   (inbox :accessor inbox :initarg :inbox :initform (queue))
+   (inbox :reader inbox :initarg :inbox :initform (queue))
    (output-ports :accessor output-ports :initarg :output-ports :initform '(:out :error))
+   (outbox :reader outbox :initarg :outbox :initform (queue))
    (outgoing :accessor outgoing :initarg :outgoing :initform (make-instance 'connection-table))))
 
 (defclass container (part) 
@@ -29,9 +30,10 @@
   ((origin :accessor origin :initarg :origin :initform nil)
    (tag :accessor tag :initarg :tag)
    (target :accessor target :initarg :target)
+   (mailbox :accessor mailbox :initarg :mailbox)
    (target-tag :accessor target-tag :initarg :target-tag)))
-(defun conn (tag target-tag target)
-  (make-instance 'connection :tag tag :target-tag target-tag :target target))
+(defun conn (tag target-tag mailbox target)
+  (make-instance 'connection :tag tag :target-tag target-tag :mailbox mailbox :target target))
 
 ;;;;;;;;;; Messages
 (defclass message ()

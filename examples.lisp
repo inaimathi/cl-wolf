@@ -21,13 +21,24 @@
        (printer (mk-printer)))
     ((self :in) -> (greeter :in))
     ((greeter :out) -> (counter :in) (printer :in))
-    ((counter :out) -> (printer :in))))
+    ((counter :out) -> (printer :in) (self :out))))
 
 (defparameter *test* (mk-test))
 
 (send! *test* :in "inaimathi")
 (send! *test* :in "dxnn")
-(send! *test* :in "guitarvydas")
+
+(defun nest-test ()
+  (container
+      (mk-test
+       (prn (mk-printer :template "BLAHDIBLAHDIBLAH ~a ~a"))
+       (doubler (reactor (out! :out (* 2 message)))))
+    ((self :in) -> (mk-test :in))
+    ((mk-test :out) -> (prn :in) (self :out))))
+
+(defparameter *nest-test* (nest-test))
+
+(send! *nest-test* :in "guitarvydas")
 
 ;;;;; More elaborate Hello World
 ;; ---> splitter ---> pairer ---> printer

@@ -12,17 +12,28 @@
       (mapc 
        (lambda (c) 
 	 (deepcast! c msg))
-       (dispatch (incoming self) (tag msg))))))
+       (dispatch (incoming self) (tag msg)))))
+  (process-outbox! self))
 
 (defmethod run! ((self reactor))
   (let ((msg (pop! (inbox self))))
-    (when msg (funcall (body self) (tag msg) (payload msg)))))
+    (when msg (funcall (body self) (tag msg) (payload msg))))
+  (process-outbox! self))
 
 (defmethod run! ((self deactor))
   (when (funcall (guard self) self)
     (apply (body self) 
 	   (loop for m in (expecting self) 
-	      collect (payload (pull! (inbox self) m))))))
+	      collect (payload (pull! (inbox self) m)))))
+  (process-outbox! self))
+
+(defmethod process-outbox! ((self part))
+  (loop until (empty? (outbox self)) 
+     for m = (pop! (outbox self))
+     for targets = (dispatch self (tag m))
+     if targets do (mapc (lambda (conn) (deepcast! conn m)) targets)
+     else collect m into undelivered
+     finally (mapc (lambda (m) (push! m (outbox self))) undelivered)))
 
 ;;;;;;;;;; The Scheduler
 (defparameter *work* (queue))
@@ -36,11 +47,11 @@
   nil)
 
 ;;;;;;;;;; Connection and dispatch
-(defmethod connect! ((from connection-table) src-tag (target part) target-tag)
-  (push (conn src-tag target-tag target) (connections from))
+(defmethod connect! ((from connection-table) src-tag (target part) mailbox target-tag)
+  (push (conn src-tag target-tag mailbox target) (connections from))
   nil)
-(defmethod connect! ((src part) src-tag (target part) target-tag)
-  (connect! (outgoing src) src-tag target target-tag)
+(defmethod connect! ((src part) src-tag (target part) mailbox target-tag)
+  (connect! (outgoing src) src-tag target mailbox target-tag)
   nil)
 
 (defmethod dispatch ((self part) tag)
@@ -48,15 +59,13 @@
 (defmethod dispatch ((conns connection-table) tag)
   (remove-if-not (lambda (s) (equal tag s)) (connections conns) :key #'tag))
 
-;;;;;;;;;; Messages
-(defmethod deepcast! ((self part) (m message))
-  (mapc (lambda (conn) (deepcast! conn m)) (dispatch self (tag m))))
+;;;;; Messages
 (defmethod deepcast! ((conn connection) (m message))
   (push! 
    (if (eq (tag conn) (target-tag conn))
        m 
        (msg (target-tag conn) (payload m)))
-   (inbox (target conn)))
+   (mailbox conn))
   (push! (target conn) *work*))
 
 ;;;;;;;;;; Sugar
@@ -67,8 +76,8 @@
 	     (loop for (part-name tag) in sources
 		for src = (if (eq part-name 'self) `(incoming ,part-name) part-name)
 		append (loop for (target-name target-tag) in targets
-			  for tgt = (if (eq target-name 'self) `(outgoing ,self) target-name)
-			  collect `(connect! ,src ,tag ,tgt ,target-tag))))))
+			  for mbox = (if (eq target-name 'self) `(outbox self) `(inbox ,target-name))
+			  collect `(connect! ,src ,tag ,target-name ,mbox ,target-tag))))))
     (loop for c in conns append (single c))))
 
 (defun find-container-ports (conns)
@@ -136,7 +145,7 @@
 (defun with-self (self body)
   `(let ((self ,self))
      (flet ((out! (tag payload)
-	      (deepcast! self (msg tag payload))))
+	      (push! (msg tag payload) (outbox self))))
        (declare (ignorable #'out!))
        ,body)
      self))
