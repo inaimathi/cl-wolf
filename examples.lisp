@@ -31,7 +31,7 @@
 (defun nest-test ()
   (container
       (mk-test
-       (prn (mk-printer :template "BLAHDIBLAHDIBLAH ~a ~a~%"))
+       (prn (reactor (format t "Blahdiblah: ~a~%" message)))
        (doubler (reactor (out! :out (* 2 message)))))
     ((self :in) -> (mk-test :in))
     ((mk-test :out) -> (prn :in) (doubler :in))
@@ -83,18 +83,18 @@
 (send! *test2* :in "Blahs")
 
 ;;;;; Pull-based Hello World
-;; :a ---> :a (a (pull-pairer)) :out ---> :in printer
-;; :b ---> :b a
+;; :a ---> :a (pairer (pull-pairer)) :out ---> :in printer
+;; :b ---> :b pairer
 (defun pull-pairer ()
   (reactor (out! :out (cons (in! :a) (in! :b)))))
 
 (defun mk-pull-test ()
   (container
-      ((a (pull-pairer))
+      ((pairer (pull-pairer))
        (printer (mk-printer)))
-    ((self :a) -> (a :a))
-    ((self :b) -> (a :b))
-    ((a :out) -> (printer :in))))
+    ((self :a) -> (pairer :a))
+    ((self :b) -> (pairer :b))
+    ((pairer :out) -> (printer :in))))
 
 (defparameter *pull-test* (mk-pull-test))
 
