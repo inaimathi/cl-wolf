@@ -1,8 +1,7 @@
 (in-package #:cl-wolf)
 
 ;;;;;;;;;; Sugar-level: DIABEETUS
-(defun parse-ascii-graph (str)
-  (coerce (split-sequence:split-sequence #\newline str :remove-empty-subseqs t) 'vector))
+(defun parse-ascii-graph (str) str)
 
 (defun read-ascii-graph (stream)
   (with-output-to-string (out)
@@ -15,63 +14,109 @@
 
 (set-dispatch-macro-character #\# #\> #'ascii-graph)
 
+(defun grouper (&key (terminator nil))
+  (let ((cache nil))
+    (reactor
+      (if (eq message terminator)
+	  (progn (out! :out cache)
+		 (setf cache nil))
+	  (push message cache)))))
+
+(defun liner ()
+  (reactor (out! :out (split-sequence:split-sequence 
+		       #\newline message 
+		       :remove-empty-subseqs t))))
+
 (defun root-finder ()
   (reactor
     (out! :out
 	  (remove 
 	   nil (loop for y from 0 for ln across message
 		  collect (loop for x from 0 for chr across ln
-			     do (case chr
-				  (#\: (return (list x y :pin)))
-				  (#\- (return (list x y :arrow)))
-				  (#\_ (return (list x y :arrow)))
-				  (#\s (return (list x y :self-part)))
-				  (#\space nil)
-				  (t (return nil)))))))))
+			     do (cond ((member chr '(#\: #\-)) (return (list x y)))
+				      ((eql chr #\space) nil)
+				      (t (return nil)))))))))
+
+(defun walk-graph-from (x y lines)
+  (let ((explored (make-hash-table :test 'equal))
+	(facts nil))
+    (labels ((recur (x y &optional prev)
+	       (let ((char (ix x y)))
+		 (cond ((ws? char) 
+			(skip-whitespace x y prev))
+		       ((arrow-char? char)
+			(get-arrow x y :prev prev :conn? t))
+		       ((null char) nil)
+		       (t (get-form x y prev)))))
+
+	     (get-arrow (x y &key (arr (list :arrow (gensym))) prev (xd 1) conn?)
+	       (unless (and conn? (explored? x y))
+		 (explored! x y)
+		 (fact! prev arr)
+		 (when (eql #\| (ix x (- y 1)))
+		   (connect-up x (- y 1) arr))
+		 (let ((y2 (+ y 1)))
+		   (when (ix x y2)
+		     (case (ix x y2)
+		       (#\\ (connect-down-right x y2 arr))
+		       (#\/ (connect-down-left x y2 arr)))))
+		 (let ((char (ix (+ x xd) y)))
+		   (cond ((arrow-char? char)
+			  (get-arrow (+ x xd) y :arr arr :xd xd))
+			 ((eql char #\|) 
+			  (connect-up (+ x xd) y arr))
+			 (t (recur (+ x xd) y arr))))))
+
+	     (connect-down (x y arr xd char)
+	       (when (eql char (ix x (+ y 1)))
+		 (connect-down x (+ y 1) arr xd char))
+	       (when (eql char (ix (+ x xd) (+ y 1)))
+		 (connect-down (+ x xd) (+ y 1) arr xd char))
+	       (let ((char (ix (+ x xd) y)))
+		 (cond ((arrow-char? char)
+			(get-arrow (+ x xd) y :arr arr :xd xd))
+		       ((eql #\space char) nil)
+		       (t (reur (+ x xd) y arr)))))
+	     (connect-down-right (x y arr)
+	       (connect-down x y arr 1 #\\))
+	     (connect-down-left (x y arr)
+	       (connect-down x y arr -1 #\/))
+
+	     (connect-up (x y arr)
+	       (let ((char (ix x (- y 1))))
+		 (cond ((eql #\| char)
+			(connect-up x (- y 1) arr))
+		       ((arrow-char? char)
+			(get-arrow x (- y 1) :arr arr)))))
+	     
+	     (get-form (x y prev)
+	       (multiple-value-bind (form ends-at) (read-from-string (aref lines y) nil nil :start x)
+		 (let ((f (if (keywordp form) (list :port form) (list :part form))))
+		   (fact! prev f)
+		   (recur ends-at y f))))
+
+	     (skip-whitespace (x y prev)
+	       (if (ws? (ix (+ x 1) y))
+		   (skip-whitespace (+ x 1) y prev)
+		   (recur (+ x 1) y prev)))
+
+	     (arrow-char? (char) (member char '(#\- #\_ #\>)))
+	     (ws? (char) (member char '(#\space #\tab)))
+	     (ix (x y) (ignore-errors (char (aref lines y) x)))
+	     (explored! (x y) (setf (gethash (cons x y) explored) t))
+	     (explored? (x y) (gethash (cons x y) explored))
+	     (fact! (a b) (when (and a b) (push (list a :to b) facts))))
+      (recur x y)
+      (reverse facts))))
 
 (defun ascii-graph-walker ()
   (reactor
     (let ((lines (in! :lines))
 	  (roots (in! :roots)))
-      (labels ((recur (x y state)
-		 (funcall state x y))))
-      (out! :out (list lines roots)))))
-
-(defun part-finder ()
-  (reactor 
-    (out! 
-     :out (remove-duplicates
-	   (sort
-	    (loop for y from 0 for ln across message
-	       append (let ((state :looking)
-			    (res nil)
-			    (jump-to 0))
-			(loop for x from 0 for chr across ln
-			   do (case state
-				(:looking
-				 (cond ((eql chr #\space) nil)
-				       ((member chr '(#\: #\- #\_ #\> #\\ #\/ #\|))
-					(setf state :skipping))
-				       (t
-					(multiple-value-bind (term ends-at) (read-from-string ln t nil :start x)
-					  (push term res)
-					  (setf state :jumping
-						jump-to ends-at)))))
-				(:jumping
-				 (when (>= x jump-to) (setf state :looking)))
-				(:skipping
-				 (when (eql chr #\space) (setf state :looking))))
-			   finally (return res))))
-	    #'> :key (lambda (p) (if (atom p) 1 0)))
-	   :key (lambda (p) (if (atom p) p (car p)))))))
-
-(defun line-tracer ()
-  (reactor
-    (let ((roots (in! :roots))
-	  (lines (in! :lines)))
-      ;; TODO
-      )))
-
+      (out! :out (mapcar 
+		  (lambda (r) 
+		    (walk-graph-from (first r) (second r) lines))
+		  roots)))))
 
 (defun container-generator ()
   (reactor
@@ -79,19 +124,21 @@
 	  (conns (in! :conns)))
       (out! :out `(container ,parts ,@conns)))))
 
-
 (defun ascii-graph-parser ()
   (container
       ((tap (mk-printer))
+       liner
        (roots (root-finder))
        (walker (ascii-graph-walker)))
-    ((self :in) -> (roots :in) (walker :lines))
-    ((roots :out) -> (walker :roots))
+    ((self :in) -> (tap :in) (liner :in))
+    ((self :lines) -> (tap :in) (roots :in) (walker :lines))
+    ((liner :out) ->  (roots :in) (walker :lines))
+    ((roots :out) -> (tap :in) (walker :roots))
     ((walker :out) -> (tap :in))))
 
 (defparameter *parser* (ascii-graph-parser))
 
-(send! *parser* :in #(":a ---> :a (a (pull-pairer)) :out ---> :in printer" ":b ---> :b a"))
+(send! *parser* :lines #(":a ---> :a (a (pull-pairer)) :out ---> :in printer" ":b ---> :b a"))
 
 #>
  ---> mk-greeter ---> mk-counter ---> mk-printer
@@ -105,9 +152,9 @@
   ((mk-counter :out) -> (mk-printer :in)))
 
 #>
-self ---> splitter ---> pairer ---> printer
-                    \___________||
-                     \_ counter _|
+---> splitter ---> pairer ---> printer
+                \___________||
+                 \_ counter _|
 #
 
 #>
@@ -116,70 +163,12 @@ self ---- splitter ---- pairer ---- printer
                      \- counter -|
 #
 
-(let ((lns #("----- countdown ---- printer"
-	     "  |              \\------- decrement --"
-	     "  |----------------------------------/"))
-      (explored (make-hash-table :test 'equal))
-      (facts nil))
-  (labels ((recur (x y &optional prev)
-	     (when (ix x y)
-	       (case (ix x y)
-		 (#\- (get-arrow x y :prev (or prev (list :part 'self)) :conn? t))
-		 (#\: (get-pin x y :prev prev))
-		 (t (get-part x y :prev prev)))))
+#(":a ---- :a (a (pull-pairer)) :out ---- :in printer"
+  ":b ---- :b a")
 
-	   (get-arrow (x y &key (arr (list :arrow (gensym))) prev (xd 1) conn?)
-	     (unless (and conn? (explored? x y))
-	       (explored! x y)
-	       (prev! prev arr)
-	       (when (eql #\| (ix x (- y 1)))
-		 (connect-up x (- y 1) arr))
-	       (let ((y2 (+ y 1)))
-		 (when (ix x y2)
-		   (case (ix x y2)
-		     (#\\ (connect-down-right x y2 arr))
-		     (#\/ (connect-down-left x y2 arr)))))
-	       (let ((x2 (+ x xd)))
-		 (case (ix x2 y)
-		   (#\- (get-arrow x2 y :arr arr :xd xd))
-		   (#\| (connect-up x2 y arr))
-		   (t (recur x2 y arr))))))
-
-	   (connect-down (x y arr xd char)
-	     (when (eql char (ix x (+ y 1)))
-	       (connect-down x (+ y 1) arr xd char))
-	     (when (eql char (ix (+ x xd) (+ y 1)))
-	       (connect-down (+ x xd) (+ y 1) arr xd char))
-	     (when (ix (+ x xd) y)
-	       (case (ix (+ x xd) y)
-		 (#\- (get-arrow (+ x xd) y :arr arr :xd xd))
-		 (#\space nil)
-		 (t (recur (+ x xd) y arr)))))
-	   (connect-down-right (x y arr)
-	     (connect-down x y arr 1 #\\))
-	   (connect-down-left (x y arr)
-	     (connect-down x y arr -1 #\/))
-
-	   (connect-up (x y arr)
-	     (case (ix x (- y 1))
-	       (#\| (connect-up x (- y 1) arr))
-	       (#\- (get-arrow x (- y 1) :arr arr))))
-	   
-	   (get-form (x y label prev)
-	     (multiple-value-bind (form ends-at) (read-from-string (aref lns y) nil nil :start x)
-	       (prev! prev (list label form))
-	       (recur ends-at y (list label form))))
-	   (get-pin (x y &key prev) 
-	     (get-form x y :pin prev))
-	   (get-part (x y &key prev)
-	     (get-form x y :part prev))
-
-	   (ix (x y) (ignore-errors (char (aref lns y) x)))
-	   (explored! (x y) (setf (gethash (cons x y) explored) t))
-	   (explored? (x y) (gethash (cons x y) explored))
-	   (prev! (a b) (when (and a b) (push (list a :to b) facts))))
-    (recur 0 0)
-    facts))
+#("----- countdown ---- printer"
+  "  |              \\------- decrement --"
+  "  |----------------------------------/")
 
 #>
 :a ---> :a (a (pull-pairer)) :out ---> :in printer
