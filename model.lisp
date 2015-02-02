@@ -5,7 +5,7 @@
   ((origin :accessor origin :initarg :origin :initform nil)
    (parent :accessor parent :initarg :parent :initform nil)
    (input-ports :accessor input-ports :initarg :input-ports :initform '(:in))
-   (input :accessor input :initarg :input :initform (queue))
+   (inbox :accessor inbox :initarg :inbox :initform (queue))
    (output-ports :accessor output-ports :initarg :output-ports :initform '(:out :error))
    (outgoing :accessor outgoing :initarg :outgoing :initform (make-instance 'connection-table))))
 
@@ -18,7 +18,7 @@
 
 (defclass deactor (part)
   ((body :accessor body :initarg :body :initform nil)
-   (input :initform nil)
+   (inbox :initform nil)
    (expecting :accessor expecting :initarg :expecting :initform nil)
    (guard :accessor guard :initarg :ready-fn :initform (constantly nil))))
 

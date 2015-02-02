@@ -7,7 +7,7 @@
   (setf (parent new-child) self)
   nil)
 (defmethod run! ((self container))
-  (let ((msg (pop! (input self))))
+  (let ((msg (pop! (inbox self))))
     (when msg
       (mapc 
        (lambda (c) 
@@ -15,14 +15,14 @@
        (dispatch (incoming self) (tag msg))))))
 
 (defmethod run! ((self reactor))
-  (let ((msg (pop! (input self))))
+  (let ((msg (pop! (inbox self))))
     (when msg (funcall (body self) (tag msg) (payload msg)))))
 
 (defmethod run! ((self deactor))
   (when (funcall (guard self) self)
     (apply (body self) 
 	   (loop for m in (expecting self) 
-	      collect (payload (pull! (input self) m))))))
+	      collect (payload (pull! (inbox self) m))))))
 
 ;;;;;;;;;; The Scheduler
 (defparameter *work* (queue))
@@ -30,7 +30,7 @@
   (loop until (empty? q) do (run! (pop! q))))
 
 (defmethod send! ((self part) tag payload)
-  (push! (msg tag payload) (input self))
+  (push! (msg tag payload) (inbox self))
   (push! self *work*)
   (run-system! *work*)
   nil)
@@ -56,7 +56,7 @@
    (if (eq (tag conn) (target-tag conn))
        m 
        (msg (target-tag conn) (payload m)))
-   (input (target conn)))
+   (inbox (target conn)))
   (push! (target conn) *work*))
 
 ;;;;;;;;;; Sugar
@@ -128,7 +128,7 @@
 	 `(lambda (self)
 	    (and ,@(loop for k being the hash-keys of counts
 		      for v being the hash-values of counts
-		      collect `(>= (length-of (input self) ,k) ,v))))
+		      collect `(>= (length-of (inbox self) ,k) ,v))))
 	 `(lambda ,(mapcar #'car (reverse syms))
 	    ,@processed)
 	 (reverse port-list))))))
@@ -154,7 +154,7 @@
   (multiple-value-bind (guard final-body ports) (process-in!-calls body)
     (with-self '(make-instance 'deactor)
       `(setf (body self) ,final-body
-	     (input self) (queue-table (list ,@ports))
+	     (inbox self) (queue-table (list ,@ports))
 	     (guard self) ,guard
 	     (expecting self) (list ,@ports)
 	     (input-ports self) (list ,@(remove-duplicates ports))
