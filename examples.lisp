@@ -31,10 +31,11 @@
 (defun nest-test ()
   (container
       (mk-test
-       (prn (mk-printer :template "BLAHDIBLAHDIBLAH ~a ~a"))
+       (prn (mk-printer :template "BLAHDIBLAHDIBLAH ~a ~a~%"))
        (doubler (reactor (out! :out (* 2 message)))))
     ((self :in) -> (mk-test :in))
-    ((mk-test :out) -> (prn :in) (self :out))))
+    ((mk-test :out) -> (prn :in) (doubler :in))
+    ((doubler :out) -> (prn :in) (self :out))))
 
 (defparameter *nest-test* (nest-test))
 
