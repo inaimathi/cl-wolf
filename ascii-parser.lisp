@@ -76,7 +76,7 @@
 		 (cond ((arrow-char? char)
 			(get-arrow (+ x xd) y :arr arr :xd xd))
 		       ((eql #\space char) nil)
-		       (t (reur (+ x xd) y arr)))))
+		       (t (recur (+ x xd) y arr)))))
 	     (connect-down-right (x y arr)
 	       (connect-down x y arr 1 #\\))
 	     (connect-down-left (x y arr)
