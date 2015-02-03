@@ -1,8 +1,8 @@
 (in-package :cl-wolf)
 
 ;;;;; Basic Hello World
-;; ---> greeter ---> counter ---> printer
-;;              \_____________|
+;; ---> greeter ---> (counter (mk-counter)) ---> printer
+;;               \___________________________|
 
 (defun mk-printer (&key (stream *standard-output*) (template "PRINTER -- ~s : ~s~%"))
   (reactor (format stream template tag message)))
@@ -107,8 +107,8 @@
 (send! *pull-test* :b 61)
 
 ;;;;; Basic HTTP server
-;; ---> buffer ---> parser ---> router ---> http-response ---> writer
-;;           \________\___________\______________\_______________\__---> printer
+;; ---> buffer ---> parser ---> router ---> http-response ---> writer _
+;;              \___________\___________\__________________\___________\__---> printer
 
 (defun http-listener (&key (ip usocket:*wildcard-host*) (port 4848) (reuse-address t))
   (reactor
