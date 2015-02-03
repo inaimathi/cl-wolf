@@ -29,9 +29,10 @@
 (send! *test* :in "dxnn")
 
 ;;;;; A demonstration of nesting
-;; ---> mk-test ---> doubler ---------------->
+;; ---> mk-test ---> doubler ----------------> 
 ;;               \            \___---> prn
 ;;                \_____________|
+
 (defun nest-test ()
   (container
       (mk-test
