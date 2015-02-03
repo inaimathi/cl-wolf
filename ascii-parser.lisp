@@ -14,27 +14,17 @@
 
 (set-dispatch-macro-character #\# #\> #'ascii-graph)
 
-(defun grouper (&key (terminator nil))
-  (let ((cache nil))
-    (reactor
-      (if (eq message terminator)
-	  (progn (out! :out cache)
-		 (setf cache nil))
-	  (push message cache)))))
+(defun find-roots (lines)
+  (remove nil
+	  (loop for y from 0 for ln across lines
+	     collect (loop for x from 0 for chr across ln
+			do (cond ((member chr '(#\: #\- #\> #\_)) (return (list x y)))
+				 ((eql chr #\space) nil)
+				 (t (return nil)))))))
 
-(defun liner ()
-  (reactor (out! :out (split-sequence:split-sequence 
-		       #\newline message 
-		       :remove-empty-subseqs t))))
-(defun root-finder ()
-  (reactor
-    (out! :out
-	  (remove 
-	   nil (loop for y from 0 for ln across message
-		  collect (loop for x from 0 for chr across ln
-			     do (cond ((member chr '(#\: #\-)) (return (list x y)))
-				      ((eql chr #\space) nil)
-				      (t (return nil)))))))))
+(defun arrow? (thing) (and (listp thing) (eq :arrow (car thing))))
+(defun port? (thing) (and (listp thing) (eq :port (car thing))))
+(defun part? (thing) (and (listp thing) (eq :part (car thing))))
 
 (defun walk-graph-from (x y lines)
   (let ((explored (make-hash-table :test 'equal))
@@ -45,6 +35,8 @@
 			(skip-whitespace x y prev))
 		       ((arrow-char? char)
 			(get-arrow x y :prev prev :conn? t))
+		       ((and (null char) (arrow? prev))
+			(fact! prev (list :part 'self)))
 		       ((null char) nil)
 		       (t (get-form x y prev)))))
 
@@ -99,7 +91,6 @@
 		   (skip-whitespace (+ x 1) y prev)
 		   (recur (+ x 1) y prev)))
 
-	     (arrow-char? (char) (member char '(#\- #\_ #\>)))
 	     (ws? (char) (member char '(#\space #\tab)))
 	     (ix (x y) (ignore-errors (char (aref lines y) x)))
 	     (explored! (x y) (setf (gethash (cons x y) explored) t))
@@ -108,36 +99,31 @@
       (recur x y)
       (reverse facts))))
 
-(defun ascii-graph-walker ()
-  (reactor
-    (let ((lines (in! :lines))
-	  (roots (in! :roots)))
-      (out! :out (mapcar 
-		  (lambda (r) 
-		    (walk-graph-from (first r) (second r) lines))
-		  roots)))))
+;; (defun desugar (walk)
+;;   (let ((res walk))
+;;     (cond ((arrow? (caar res))
+;; 	   (let ((arr (caar res)))
+;; 	     (push `((:port :in) :to ,arr) res)
+;; 	     (push `((:part self) :to ,arr) res)))
+;; 	  ((port? (caar res))
+;; 	   (push `((:part self) :to ,(caar res)))))
+;;     (loop for (conn-a conn-b) on walk
+;;        for (src-a _ dst-a) = conn-a
+;;        for (src-b _1 dst-b) = conn-b
+;;        append (cond ((and (arrow? (car conn-a)))))))
+;;   (let ((desugared)
+;; 	(parts nil))
+    
+;;     (loop for (a b) on walk
+;;        for (src-a _0 dst-a) = a
+;;        for (src-b _1 dst-b) = b
+;;        append (list a b))))
 
-(defun container-generator ()
-  (reactor
-    (let ((parts (in! :parts))
-	  (conns (in! :conns)))
-      (out! :out `(container ,parts ,@conns)))))
-
-(defun ascii-graph-parser ()
-  (container
-      ((tap (mk-printer))
-       liner
-       (roots (root-finder))
-       (walker (ascii-graph-walker)))
-    ((self :in) -> (tap :in) (liner :in))
-    ((self :lines) -> (tap :in) (roots :in) (walker :lines))
-    ((liner :out) ->  (roots :in) (walker :lines))
-    ((roots :out) -> (tap :in) (walker :roots))
-    ((walker :out) -> (tap :in))))
-
-(defparameter *parser* (ascii-graph-parser))
-
-(send! *parser* :lines #(":a ---> :a (a (pull-pairer)) :out ---> :in printer" ":b ---> :b a"))
+(defun parse-ascii (str)
+  (let* ((lines (coerce (split-sequence #\newline str) 'vector))
+	 (roots (find-roots lines)))
+    (loop for (x y) in roots
+       collect (condense-connections (walk-graph-from x y lines)))))
 
 #>
  ---> mk-greeter ---> mk-counter ---> mk-printer
