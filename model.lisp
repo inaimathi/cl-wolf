@@ -5,7 +5,7 @@
   ((origin :accessor origin :initarg :origin :initform nil)
    (parent :accessor parent :initarg :parent :initform nil)
    (input-ports :accessor input-ports :initarg :input-ports :initform '(:in))
-   (inbox :reader inbox :initarg :inbox :initform (queue))
+   (inbox :accessor inbox :initarg :inbox :initform (queue))
    (output-ports :accessor output-ports :initarg :output-ports :initform '(:out :error))
    (outbox :reader outbox :initarg :outbox :initform (queue))
    (outgoing :accessor outgoing :initarg :outgoing :initform (make-instance 'connection-table))))
