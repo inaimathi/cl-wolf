@@ -28,6 +28,10 @@
 (send! *test* :in "inaimathi")
 (send! *test* :in "dxnn")
 
+;;;;; A demonstration of nesting
+;; ---> mk-test ---> doubler ---------------->
+;;               \            \___---> prn
+;;                \_____________|
 (defun nest-test ()
   (container
       (mk-test
@@ -105,6 +109,32 @@
 (send! *pull-test* :b 59)
 (send! *pull-test* :b 60)
 (send! *pull-test* :b 61)
+
+;;;;; Basic loop test
+;; ---> countdown ---> printer
+;;  |          \___--> decrement
+;;  |_____________________/
+
+(defun countdown (&key (til 0))
+  (reactor 
+    (when (> message til)
+      (out! :out message))))
+
+(defun decrement (&key (by 1))
+  (reactor (out! :out (- message by))))
+
+(defun mk-loop ()
+  (container
+      (countdown
+       (dec (decrement))
+       (tap (mk-printer)))
+    ((self :in) -> (countdown :in))
+    ((countdown :out) -> (dec :in) (tap :in))
+    ((dec :out) -> (countdown :in))))
+
+(defparameter *loop-test* (mk-loop))
+
+(send! *loop-test* :in 10)
 
 ;;;;; Basic HTTP server
 ;; ---> buffer ---> parser ---> router ---> http-response ---> writer _
@@ -213,62 +243,3 @@
     ((res :out) -> (http-writer :in) (tap :in))))
 
 (defparameter *server* (mk-test3))
-
-;; The below are test messages from the incremental work of building this.
-;; They no longer apply though (except for partial testing, which I should probably also write an example of)
-;; If you want to see this in action, you'll need to start it and send it a proper HTTP request at the target port.
-
-;; (let ((get-req "GET /index.html HTTP/1.1
-;; Host: www.example.com
-;; 
-;; "))
-;;   (send! *test3* :in (list :sock-tag (coerce (reverse get-req) 'list) (length get-req))))
-
-;; (let ((get-req "GET /index.html?a=1 HTTP/1.1
-;; Host: www.example.com
-;; 
-;; "))
-;;   (send! *test3* :in (list :sock-tag (coerce (reverse get-req) 'list) (length get-req))))
-
-;; ;;;;;;;;;; Test Rig
-;; (defun test-rig (part &rest port/payload-pairs)
-;;   (let ((c (container 
-;; 	       ((subject part)
-;; 		(tap (mk-printer)))
-;; 	     (self -> subject (tap :in))
-;; 	     (subject -> (tap :in)))))
-;;     (loop for (k v) on port/payload-pairs by #'cddr
-;;        do (send! c k v))))
-
-;; (test-rig 
-;;  (mk-greeter)
-;;  :in "A"
-;;  :in "B"
-;;  :in "C")
-
-
-;;;;; Basic loop test
-;; ---> countdown ---> printer
-;;  |          \___--> decrement
-;;  |_____________________/
-
-(defun countdown (&key (til 0))
-  (reactor 
-    (when (> message til)
-      (out! :out message))))
-
-(defun decrement (&key (by 1))
-  (reactor (out! :out (- message by))))
-
-(defun mk-loop ()
-  (container
-      (countdown
-       (dec (decrement))
-       (tap (mk-printer)))
-    ((self :in) -> (countdown :in))
-    ((countdown :out) -> (dec :in) (tap :in))
-    ((dec :out) -> (countdown :in))))
-
-(defparameter *loop-test* (mk-loop))
-
-(send! *loop-test* :in 10)
