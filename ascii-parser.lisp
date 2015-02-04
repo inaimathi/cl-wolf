@@ -26,6 +26,7 @@
 (defun port? (thing) (and (listp thing) (eq :port (car thing))))
 (defun part? (thing) (and (listp thing) (eq :part (car thing))))
 
+;; no, you really need connections (some arrows connect to multiple things)
 (defun walk-graph-from (x y lines)
   (let ((explored (make-hash-table :test 'equal))
 	(facts nil))
@@ -91,6 +92,7 @@
 		   (skip-whitespace (+ x 1) y prev)
 		   (recur (+ x 1) y prev)))
 
+	     (arrow-char? (char) (member char '(#\- #\> #\_)))
 	     (ws? (char) (member char '(#\space #\tab)))
 	     (ix (x y) (ignore-errors (char (aref lines y) x)))
 	     (explored! (x y) (setf (gethash (cons x y) explored) t))
@@ -98,6 +100,49 @@
 	     (fact! (a b) (when (and a b) (push (list a :to b) facts))))
       (recur x y)
       (reverse facts))))
+
+(defun find-parts (walk)
+  (loop for (a _ b) in walk
+     when (part? a) collect (second a)
+     when (part? b) collect (second b)))
+
+(defun desugar (walk)
+  (flet ((self? (p) (and (part? p) (eq 'self (second p)))))
+    (loop for conn in (if (or (arrow? (caar walk)) (port? (caar walk)))
+			  (cons `((:part self) :to ,(caar walk)) walk)
+			  walk)
+       if (and (arrow? (first conn)) (part? (third conn)))
+       append (let ((port-name (if (self? (third conn)) :out :in)))
+		`((,(first conn) :to (:port ,port-name)) ((:port ,port-name) :to ,(third conn))))
+       else if (and (part? (first conn)) (arrow? (third conn)))
+       append (let ((port-name (if (self? (first conn)) :in :out)))
+		`((,(first conn) :to (:port ,port-name)) ((:port ,port-name) :to ,(third conn))))
+       else collect conn)))
+
+(defun merge-ports (desugared-walk)
+  (flet ((name-of (p) (if (consp (second p)) (car (second p)) (second p))))
+    (let ((input desugared-walk))
+      (loop for conn = (pop input) while conn
+	 if (and (part? (first conn)) (port? (third conn)))
+	 collect `((,(name-of (first conn)) ,(second (third conn))) :to ,(third (pop input)))
+	 else if (and (arrow? (first conn)) (port? (third conn)))
+	 collect `(,(first conn) :to (,(name-of (third (pop input))) ,(second (third conn))))))))
+
+(defun assemble-connections (merged-walk)
+  (loop for conn in merged-walk
+     when (arrow? (third conn))
+     collect `(,(first conn) -> 
+		,@(loop for c2 in merged-walk
+		     when (equal (first c2) (third conn))
+		     collect (third c2)))))
+
+(defun dedupe-parts (part-lists)
+  (remove 'self
+	  (remove-duplicates
+	   (sort 
+	    (apply #'append walks)
+	    #'> :key (lambda (p) (if (symbolp p) 1 0)))
+	   :key (lambda (p) (if (consp p) (car p) p)))))
 
 ;; (defun desugar (walk)
 ;;   (let ((res walk))

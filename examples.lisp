@@ -1,7 +1,7 @@
 (in-package :cl-wolf)
 
 ;;;;; Basic Hello World
-;; ---> greeter ---> (counter (mk-counter)) ---> printer
+;; ---> greeter ---> (counter (mk-counter)) ---> printer --->
 ;;               \___________________________|
 
 (defun mk-printer (&key (stream *standard-output*) (template "PRINTER -- ~s : ~s~%"))
