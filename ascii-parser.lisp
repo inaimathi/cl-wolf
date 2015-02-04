@@ -1,12 +1,10 @@
 (in-package #:cl-wolf)
 
 ;;;;;;;;;; Sugar-level: DIABEETUS
-(defun parse-ascii-graph (str) str)
-
 (defun read-ascii-graph (stream)
   (with-output-to-string (out)
-    (loop for c = (read-char stream nil nil)
-       until (eql c #\#) do (write-char c out))))
+    (loop for c = (read-char stream nil nil) until (eql c #\#) 
+       do (write-char c out))))
 
 (defun ascii-graph (stream char arg)
   (declare (ignore char arg))
@@ -53,7 +51,7 @@
 		       (#\\ (connect-down-right x y2 arr))
 		       (#\/ (connect-down-left x y2 arr)))))
 		 (let ((char (ix (+ x xd) y)))
-		   (cond ((arrow-char? char)
+		   (cond ((or (arrow-char? char) (member char '(#\\ #\/)))
 			  (get-arrow (+ x xd) y :arr arr :xd xd))
 			 ((eql char #\|) 
 			  (connect-up (+ x xd) y arr))
@@ -131,44 +129,42 @@
 (defun assemble-connections (merged-walk)
   (loop for conn in merged-walk
      when (arrow? (third conn))
-     collect `(,(first conn) -> 
-		,@(loop for c2 in merged-walk
-		     when (equal (first c2) (third conn))
-		     collect (third c2)))))
+     append (loop for c2 in merged-walk
+	       when (equal (first c2) (third conn))
+	       collect `(,(first conn) -> ,(third c2)))))
 
-(defun dedupe-parts (part-lists)
+(defun dedupe-parts (parts)
   (remove 'self
 	  (remove-duplicates
-	   (sort 
-	    (apply #'append walks)
-	    #'> :key (lambda (p) (if (symbolp p) 1 0)))
+	   (sort parts #'> :key (lambda (p) (if (symbolp p) 1 0)))
 	   :key (lambda (p) (if (consp p) (car p) p)))))
 
-;; (defun desugar (walk)
-;;   (let ((res walk))
-;;     (cond ((arrow? (caar res))
-;; 	   (let ((arr (caar res)))
-;; 	     (push `((:port :in) :to ,arr) res)
-;; 	     (push `((:part self) :to ,arr) res)))
-;; 	  ((port? (caar res))
-;; 	   (push `((:part self) :to ,(caar res)))))
-;;     (loop for (conn-a conn-b) on walk
-;;        for (src-a _ dst-a) = conn-a
-;;        for (src-b _1 dst-b) = conn-b
-;;        append (cond ((and (arrow? (car conn-a)))))))
-;;   (let ((desugared)
-;; 	(parts nil))
-    
-;;     (loop for (a b) on walk
-;;        for (src-a _0 dst-a) = a
-;;        for (src-b _1 dst-b) = b
-;;        append (list a b))))
+(defun condense-connections (conns)
+  (let ((res (make-hash-table :test 'equal)))
+    (loop for (src _ dst) in conns
+       do (push dst (gethash src res nil)))
+    (loop for k being the hash-keys of res
+       for v being the hash-values of res
+       collect (cons k (cons '-> v)))))
 
-(defun parse-ascii (str)
+(defun mappend (fn lst) 
+  (loop for elem in lst append (funcall fn elem)))
+
+(defun parse-ascii-graph (str)
   (let* ((lines (coerce (split-sequence #\newline str) 'vector))
-	 (roots (find-roots lines)))
-    (loop for (x y) in roots
-       collect (condense-connections (walk-graph-from x y lines)))))
+	 (roots (find-roots lines))
+	 (walks (loop for (x y) in roots
+		   collect (walk-graph-from x y lines)))
+	 (final `(container
+		     ,(dedupe-parts (mappend #'find-parts walks))
+		   ,@(condense-connections 
+		      (mappend 
+		       (lambda (w)
+			 (assemble-connections 
+			  (merge-ports (desugar w))))
+		       walks)))))
+    (format t "Compiled~%===============~a~%===============~%to ~a~%" str final)
+    final))
 
 #>
  ---> mk-greeter ---> mk-counter ---> mk-printer
@@ -193,6 +189,9 @@ self ---- splitter ---- pairer ---- printer
                      \- counter -|
 #
 
+":a ---- :a (a (pull-pairer)) :out ---- :in printer
+:b ---- :b a"
+
 #(":a ---- :a (a (pull-pairer)) :out ---- :in printer"
   ":b ---- :b a")
 
@@ -210,8 +209,11 @@ self ---- splitter ---- pairer ---- printer
              \___________\___________\__________________\__________\___---> printer
 #
 
+#(" ---> buffer ---> parser ---> router ---> http-response ---> writer "
+  "             \\___________\\___________\\__________________\\__________\\___---> printer")
+
 #>
  ---> countdown ---> printer
-  ^             \_-> decrement
+  |             \_-> decrement
   |_____________________/
 #
