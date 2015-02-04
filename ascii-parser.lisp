@@ -163,57 +163,31 @@
 			 (assemble-connections 
 			  (merge-ports (desugar w))))
 		       walks)))))
-    (format t "Compiled~%===============~a~%===============~%to ~a~%" str final)
     final))
 
-#>
- ---> mk-greeter ---> mk-counter ---> mk-printer
-                 \________________|
-#
+;; #>
+;;  ---> mk-greeter ---> mk-counter ---> mk-printer
+;;                  \________________|
+;; #
 
-(container
-    (mk-greeter mk-counter mk-printer)
-  ((self :in) -> (mk-greeter :in))
-  ((mk-greeter :out) -> (mk-counter :in) (mk-printer :in))
-  ((mk-counter :out) -> (mk-printer :in)))
+;; #>
+;; ---> splitter ---> pairer ---> printer
+;;                 \___________||
+;;                  \_ counter _|
+;; #
 
-#>
----> splitter ---> pairer ---> printer
-                \___________||
-                 \_ counter _|
-#
+;; #>
+;; :a ---> :a (a (pull-pairer)) :out ---> :in printer
+;; :b ---> :b a
+;; #
 
-#>
-self ---- splitter ---- pairer ---- printer
-                    \-----------||
-                     \- counter -|
-#
+;; #>
+;;  ---> buffer ---> parser ---> router ---> http-response ---> writer 
+;;              \___________\___________\__________________\__________\___---> printer
+;; #
 
-":a ---- :a (a (pull-pairer)) :out ---- :in printer
-:b ---- :b a"
-
-#(":a ---- :a (a (pull-pairer)) :out ---- :in printer"
-  ":b ---- :b a")
-
-#("----- countdown ---- printer"
-  "  |              \\------- decrement --"
-  "  |----------------------------------/")
-
-#>
-:a ---> :a (a (pull-pairer)) :out ---> :in printer
-:b ---> :b a
-#
-
-#>
- ---> buffer ---> parser ---> router ---> http-response ---> writer 
-             \___________\___________\__________________\__________\___---> printer
-#
-
-#(" ---> buffer ---> parser ---> router ---> http-response ---> writer "
-  "             \\___________\\___________\\__________________\\__________\\___---> printer")
-
-#>
- ---> countdown ---> printer
-  |             \_-> decrement
-  |_____________________/
-#
+;; #>
+;;  ---> countdown ---> printer
+;;   |             \_-> decrement -
+;;   |____________________________/
+;; #
