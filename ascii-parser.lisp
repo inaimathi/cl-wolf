@@ -24,7 +24,10 @@
 (defun port? (thing) (and (listp thing) (eq :port (car thing))))
 (defun part? (thing) (and (listp thing) (eq :part (car thing))))
 
-;; no, you really need connections (some arrows connect to multiple things)
+
+;; Options:
+;;   - Check that the last chunk of the previous arrow has no other connection possibilities
+;;   - Enforce that arrows should end with a > or ^
 (defun walk-graph-from (x y lines)
   (let ((explored (make-hash-table :test 'equal))
 	(facts nil))
