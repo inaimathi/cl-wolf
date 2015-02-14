@@ -24,7 +24,6 @@
 (defun port? (thing) (and (listp thing) (eq :port (car thing))))
 (defun part? (thing) (and (listp thing) (eq :part (car thing))))
 
-
 ;; Options:
 ;;   - Check that the last chunk of the previous arrow has no other connection possibilities
 ;;   - Enforce that arrows should end with a > or ^
@@ -158,8 +157,8 @@
 	 (roots (find-roots lines))
 	 (walks (loop for (x y) in roots
 		   collect (walk-graph-from x y lines)))
-	 (final `(container
-		     ,(dedupe-parts (mappend #'find-parts walks))
+	 (final `'(container
+		   ,(dedupe-parts (mappend #'find-parts walks))
 		   ,@(condense-connections 
 		      (mappend 
 		       (lambda (w)
@@ -185,8 +184,8 @@
 ;; #
 
 ;; #>
-;;  ---> buffer ---> parser ---> router ---> http-response ---> writer 
-;;              \___________\___________\__________________\__________\___---> printer
+;;  ---> buffer ---> parser ---> router ---> http-response ---> writer -
+;;               \___________\___________\__________________\___________\___---> printer
 ;; #
 
 ;; #>

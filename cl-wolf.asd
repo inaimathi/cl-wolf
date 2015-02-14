@@ -5,9 +5,10 @@
   :description "Describe cl-wolf here"
   :author "Your Name <your.name@example.com>"
   :license "Specify license here"
-  :depends-on (#:alexandria #:split-sequence #:usocket #:cl-ppcre)
+  :depends-on (#:alexandria  #:cl-ppcre #:fact-base #:ironclad #:split-sequence #:usocket)
   :components ((:file "package")
 	       (:file "model")
 	       (:file "input-structures")
+	       (:file "modules")
                (:file "cl-wolf")))
 

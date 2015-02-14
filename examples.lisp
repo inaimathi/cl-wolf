@@ -3,18 +3,17 @@
 ;;;;; Basic Hello World
 ;; ---> greeter ---> (counter (mk-counter)) ---> printer --->
 ;;               \___________________________|
-
-(defun mk-printer (&key (stream *standard-output*) (template "PRINTER -- ~s : ~s~%"))
+(module mk-printer (&key (stream *standard-output*) (template "PRINTER -- ~s : ~s~%"))
   (reactor (format stream template tag message)))
 
-(defun mk-greeter (&key (template "Hello there, ~a!"))
+(module mk-greeter (&key (template "Hello there, ~a!"))
   (reactor (out! :out (format nil template message))))
 
-(defun mk-counter (&key (initial 0))
+(module mk-counter (&key (initial 0))
   (let ((ct initial))
     (reactor (out! :out (incf ct)))))
 
-(defun mk-test ()
+(module mk-test ()
   (container
       ((greeter (mk-greeter))
        (counter (mk-counter))
@@ -32,8 +31,7 @@
 ;; ---> mk-test ---> doubler ----------------> 
 ;;               \            \___---> prn
 ;;                \_____________|
-
-(defun nest-test ()
+(module nest-test ()
   (container
       (mk-test
        (prn (reactor (format t "Blahdiblah: ~a~%" message)))
@@ -50,8 +48,7 @@
 ;; ---> splitter ---> pairer ---> printer
 ;;               \____________||
 ;;               \___ counter _|
-
-(defun splitter (&key (chunk-size 1) (send-remainder? t))
+(module splitter (&key (chunk-size 1) (send-remainder? t))
   (reactor
     (loop with len = (length message)
        for i from 0 by chunk-size
@@ -61,7 +58,7 @@
        finally (when (and send-remainder? (>= j len) (> len i))
 		 (out! :out (subseq message i))))))
 
-(defun pairer ()
+(module pairer ()
   (let ((cache nil))
     (reactor
       (if cache
@@ -70,7 +67,7 @@
 	    (setf cache nil))
 	  (setf cache (list message))))))
 
-(defun mk-test2 ()
+(module mk-test2 ()
   (container
       (splitter
        pairer
@@ -90,11 +87,10 @@
 ;;;;; Pull-based Hello World
 ;; :a ---> :a (pairer (pull-pairer)) :out ---> :in printer
 ;; :b ---> :b pairer
-
-(defun pull-pairer ()
+(module pull-pairer ()
   (reactor (out! :out (cons (in! :a) (in! :b)))))
 
-(defun mk-pull-test ()
+(module mk-pull-test ()
   (container
       ((pairer (pull-pairer))
        (printer (mk-printer)))
@@ -115,16 +111,15 @@
 ;; ---> countdown ---> printer
 ;;  |          \___--> decrement
 ;;  |_____________________/
-
-(defun countdown (&key (til 0))
+(module countdown (&key (til 0))
   (reactor 
     (when (> message til)
       (out! :out message))))
 
-(defun decrement (&key (by 1))
+(module decrement (&key (by 1))
   (reactor (out! :out (- message by))))
 
-(defun mk-loop ()
+(module mk-loop ()
   (container
       (countdown
        (dec (decrement))
@@ -140,8 +135,7 @@
 ;;;;; Basic HTTP server
 ;; ---> buffer ---> parser ---> router ---> http-response ---> writer _
 ;;              \___________\___________\__________________\___________\__---> printer
-
-(defun http-listener (&key (ip usocket:*wildcard-host*) (port 4848) (reuse-address t))
+(module http-listener (&key (ip usocket:*wildcard-host*) (port 4848) (reuse-address t))
   (reactor
     (let ((conns (list (socket-listen ip port :reuse-address reuse-address))))
       (unwind-protect
@@ -160,7 +154,7 @@
 		#-lispworks (loop while (socket-close sock)))
 	      conns)))))
 
-(defun http-buffer ()
+(module http-buffer ()
   (let ((buffer-table (make-hash-table)))
     (flet ((get-buf (sock) (gethash sock buffer-table))
 	   (new-buf! (sock init len) (setf (gethash sock buffer-table) (cons init len)))
@@ -178,7 +172,7 @@
 	      (out! :out (list sock (coerce (reverse (car buf)) 'string)))
 	      (kill-buf! sock))))))))
 
-(defun http-parser ()
+(module http-parser ()
   (flet ((to-key (str) (intern (string-upcase str) :keyword)))
     (reactor
       (handler-case
@@ -196,13 +190,13 @@
 		  (out! :out (list sock (to-key req-type) resource parameters headers))))))
 	(error () (out! :error (list :error self message)))))))
 
-(defun http-hello ()
+(module http-hello ()
   (reactor
     (destructuring-bind (sock &rest stuff) message
       (declare (ignore stuff))
       (out! :out (list sock (list "200 OK" "text/html" "<html><body>Hello, world!</body></html>"))))))
 
-(defun http-response ()
+(module http-response ()
   (flet ((cat (a b) (concatenate 'string a b)))
     (reactor
       (destructuring-bind (sock (http-code content-type body)) message
@@ -215,7 +209,7 @@
 			       "")
 			 t))))))
 
-(defun http-writer ()
+(module http-writer ()
   (reactor
     (destructuring-bind (sock response close?) message
       (ignore-errors
@@ -227,7 +221,7 @@
       (when close?
 	(ignore-errors (socket-close sock))))))
 
-(defun mk-test3 ()
+(module mk-test3 ()
   (container
       (http-listener
        http-buffer 
