@@ -1,7 +1,9 @@
 (in-package #:cl-wolf)
 
 (defparameter *strap-wolf* 
-  (make-fact-base))
+  (if (cl-fad:file-exists-p *module-base*)
+      (load! *module-base*)
+      (make-fact-base :file-name *module-base*)))
 
 (defmethod module-exists? ((name symbol))
   (for-all `(?id :name ,name) :in *strap-wolf* :do (return ?id)))
@@ -30,7 +32,9 @@ Otherwise, we register a new module"
 	     (multi-insert!
 	      *strap-wolf*
 	      `((:name ,name) (:parameters ,args) (:source ,body) (:factory ,(symbol-function name)) 
-		(:hash ,hash) (:registered ,(get-universal-time))))))
+		(:hash ,hash) (:registered ,(get-universal-time))
+		,@(mapcar (lambda (h) `(:depends-on ,h)) (find-dependencies (car body)))))
+	     (write! *strap-wolf*)))
       (cond ((for-all `(and (?id :name ,name) (?id :hash ,hash)) :in *strap-wolf* :do (return t))
 	     :duplicate-module)
 	    ((for-all `(?id :hash ,hash) :in *strap-wolf* :do (return t))

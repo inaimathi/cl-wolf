@@ -8,3 +8,7 @@
 	   #:in! #:out! #:->
 	   #:tag #:message #:self))
 
+(in-package #:cl-wolf)
+(defparameter *module-base* 
+  (merge-pathnames ".cl-wolf.base" (user-homedir-pathname)))
+
