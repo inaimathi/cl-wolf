@@ -238,3 +238,4 @@
     ((res :out) -> (http-writer :in) (tap :in))))
 
 (defparameter *server* (mk-test3))
+(send! *server* :in :start)
