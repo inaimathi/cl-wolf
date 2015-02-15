@@ -3,6 +3,9 @@
 (defparameter *strap-wolf* 
   (make-fact-base))
 
+(defmethod module-exists? ((name symbol))
+  (for-all `(?id :name ,name) :in *strap-wolf* :do (return ?id)))
+
 (defmacro module (name args &body body)
   (assert (and (listp (car body)) (null (cdr body))) nil "A module may only contain one term.")
   (assert (lick (car body)) nil "A module must be a REACTOR or CONTAINER surrounded by local-definition form.")
