@@ -7,6 +7,7 @@
   :license "Specify license here"
   :depends-on (#:alexandria  #:cl-ppcre #:fact-base #:ironclad #:split-sequence #:usocket)
   :components ((:file "package")
+	       (:file "util")
 	       (:file "model")
 	       (:file "input-structures")
 	       (:file "modules")
