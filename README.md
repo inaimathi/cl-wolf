@@ -24,6 +24,9 @@ Together, those three will allow a great deal of flexibility in system design, w
 
 ##### Module-related
 
+- think seriously about how a module server would look
+	- you may end up replacing some local module stuff with calls out to the local server
+	- this might be a better fit for a separate project `revres-wolf` or something, in keeping with the theme
 - do we want dependencies to be specified by `hash`, or `name`?
 	- one of our use cases is going to be automatically testing parts against new versions of their dependencies.
 	- to be fair, thanks to the `fact-base` back-end, it's still possible to do that with a `hash` association.
