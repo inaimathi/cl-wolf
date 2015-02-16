@@ -5,12 +5,27 @@
       (load! *module-base*)
       (make-fact-base :file-name *module-base*)))
 
+(defun install-module (name &key server)
+  ;; check install servers for given module. Install if they existz
+  nil)
+(defun upgrade-module (name &key server) 
+  ;; check install servers for new versions. Install them if they exist.
+  nil)
+(defun load-module (name) 
+  ;; if in *strap-wolf*, load it from there
+  ;; otherwise check some install servers
+  ;; otherwise fail
+  nil)
+
 (defmethod module-exists? ((name symbol))
   (for-all `(?id :name ,name) :in *strap-wolf* :do (return ?id)))
 
 (defmacro module (name args &body body)
   (assert (and (listp (car body)) (null (cdr body))) nil "A module may only contain one term.")
-  (assert (lick (car body)) nil "A module must be a REACTOR or CONTAINER surrounded by local-definition form.")
+  (assert 
+   (or (eq 'container (caar body)) (lick (car body))) nil
+   "A module must either be a naked CONTAINER, or a REACTOR surrounded by local-definition forms.")
+  ;; if there isn't already a function with the given name, define it.
   (let ((alias (for-all `(and (?id :hash ,(module-hash args body)) (?id :name ?name)) :in *strap-wolf* :do (return ?name))))
     (unless (eq alias name)
       `(progn 
@@ -50,67 +65,43 @@ Otherwise, we register a new module"
 	       '(reactor container))))
 
 (defun lick (module-body)
-  "A body can be either a reactor or container contained within an arbitrary number and order of local definition terms.
+  "A body can be either a REACTOR or contained within an arbitrary number and order of local definition terms.
 These include `let`, `let*`, `flet`, `labels`, `macrolet` and `symbol-macrolet`.
-`lick` takes a module body, and either returns the chewy center (reactor/container) form, or NIL if no such form exists.
-Additionally, `lick` returns lists of local-vars, local-functions and local-macros (innermost first each) as additional values.
+`lick` takes a module body, and either returns the chewy center (reactor) form, or NIL if no such form exists.
 
 For example, 
 
     (lick 
-      (let ((a 1))
-        (flet ((b () 2))
-          (labels ((c () 3))
-            (macrolet ((blah () 4)) 
-	      (symbol-macrolet ((mumble 5))
-	        (reactor (write :hello))))))))
+      '(let ((a 1))
+         (flet ((b () 2))
+           (labels ((c () 3))
+             (macrolet ((blah () 4)) 
+	       (symbol-macrolet ((mumble 5))
+	         (reactor (write :hello))))))))
     => (REACTOR (WRITE :HELLO))
-       (a)
-       (c b)
-       (mumble blah)
 
     (lick (lambda (a) b))
     => NIL
-       NIL
-       NIL
-       NIL
 
 There may also be container forms we'll want to handle in the future (for instance `with-open-file`, or similar)."
-  (let ((local-vars) (local-fns) (local-macros))
-    (labels ((recur (rest)
-	       (when (consp rest)
-		 (cond ((part-form? rest) rest)
-		       ((member (car rest) '(let let* flet labels macrolet symbol-macrolet))
-			(push-names (car rest) (second rest))
-			(recur (caddr rest))))))
-	     (push-names (bind-name bindings)
-	       (loop for (k v) in bindings
-		  do (cond ((member bind-name '(let let*))
-			    (push k local-vars))
-			   ((member bind-name '(flet labels))
-			    (push k local-fns))
-			   ((member bind-name '(macrolet symbol-macrolet))
-			    (push k local-macros))))))
-      (let ((res (recur module-body)))
-	(when res 
-	  (values res local-vars local-fns local-macros))))))
+  (cond ((atom module-body) nil)
+	((eq 'reactor (car module-body))
+	 module-body)
+	((member (car module-body) '(let let* flet labels macrolet symbol-macrolet))
+	 (lick (caddr module-body)))))
 
-(defun find-dependencies (module-body)
-  (multiple-value-bind (licked-body local-vars local-fns local-macros) (lick module-body)
-    (flet ((single-dep (name)
-	     (unless (or (member name local-vars)
-			 (member name local-fns)
-			 (member name local-macros))
-	       (first 
-		(for-all 
-		 `(and (?id :name ,name) (?id :hash ?hash)) 
-		 :in *strap-wolf* 
-		 :collect ?hash)))))
-      (when (eq (car licked-body) 'container)
-	(loop for term in (second licked-body)
-	   for dep = (cond ((atom term) (single-dep term))
-			   ((or (atom (second term)) 
-				(part-form? (second term)))
-			    nil)
-			   (t (single-dep (caadr term))))
-	   when dep collect dep)))))
+(defun find-dependencies (module-body)  
+  (flet ((single-dep (name)
+	   (first 
+	    (for-all 
+	     `(and (?id :name ,name) (?id :hash ?hash)) 
+	     :in *strap-wolf* 
+	     :collect ?hash))))
+    (when (eq (car module-body) 'container)
+      (loop for term in (second module-body)
+	 for dep = (cond ((atom term) (single-dep term))
+			 ((or (atom (second term)) 
+			      (part-form? (second term)))
+			  nil)
+			 (t (single-dep (caadr term))))
+	 when dep collect dep))))
