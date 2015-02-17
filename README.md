@@ -30,7 +30,9 @@ Together, those three will allow a great deal of flexibility in system design, w
 	- change the dependency finder correspondingly to ignore those requirements
 - as it stands, a container doesn't guarantee consistency of its part tree
 	- this is because we designate child parts by factory call
-	- if we wanted to, we could additionally start designating child parts by hash (since these hashes would then be part of the container body, the containers' hash now guarantees its full tree)
+	- if we wanted to, we could additionally start designating child parts by hash
+		- (since these hashes would then be part of the container body, the containers' hash now guarantees its full tree)
+	- alternatively, we could decree that the `module-hash` is computed from `(list dependencies args body)` rather than `(cons args body)`
 	- this might have a downside for automated regression testing 
 - think seriously about how a module server would look
 	- you may end up replacing some local module stuff with calls out to the local server
