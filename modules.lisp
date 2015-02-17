@@ -46,8 +46,7 @@ Otherwise, we register a new module"
     (flet ((register-version! ()
 	     (multi-insert!
 	      *strap-wolf*
-	      `((:name ,name) (:parameters ,args) (:source ,body) (:factory ,(symbol-function name)) 
-		(:hash ,hash) (:registered ,(get-universal-time))
+	      `((:name ,name) (:parameters ,args) (:source ,body) (:hash ,hash) (:registered ,(get-universal-time))
 		,@(mapcar (lambda (h) `(:depends-on ,h)) (find-dependencies (car body)))))
 	     (write! *strap-wolf*)))
       (cond ((for-all `(and (?id :name ,name) (?id :hash ,hash)) :in *strap-wolf* :do (return t))
