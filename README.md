@@ -61,16 +61,16 @@ Together, those three will allow a great deal of flexibility in system design, w
 ##### Ascii-related
 - directional triggering bug (found by Dann)
 
-\__     \__
-\__  vs  \_
+        \__     \__
+        \__  vs  \_
 
 - one proposed fix: only connect `down-(right|left)`, rather than `(or down down-(right|left))`
 
 - self output bug
 
-  ---> countdown ---> printer
-   |             \_-> decrement -
-   |____________________________/
+        ---> countdown ---> printer
+         |             \_-> decrement -
+         |____________________________/
 
 that line coming out of decrement ends up translating into a `(self :out)` connection, even though it isn't the intention.
 
