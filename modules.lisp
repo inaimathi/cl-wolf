@@ -13,19 +13,49 @@
   ;; check install servers for new versions. Install them if they exist.
   nil)
 
-(defun load-module (name)
-  (let ((mod (first
-	      (sort 
-	       (for-all 
-		`(and (?id :name ,(->wolf-name name))
-		      (?id :parameters ?args) (?id :source ?body)
-		      (?id :registered ?stamp))
-		:in *strap-wolf* 
-		:collect (list ?stamp ?args ?body))
-	       #'> :key #'first))))
-    (if mod 
-	(eval `(module ,name ,(second mod) ,@(third mod)))
-	(error "TODO - check install servers here. Fail if not found."))))
+(defun load-by-hash (hash)
+  (let ((mod (for-all 
+	      `(and (?id :name (?package ?name))
+		    (?id :hash ,hash)
+		    (?id :parameters ?args) (?id :source ?body))
+	      :in *strap-wolf* :do (return `(module ,(intern ?name) ,?args ,@?body)))))
+    ;; if module exists, and has dependencies, load them first, then load the module
+    ;; if module exists and has no dependencies, load it
+    ;; if module doesn't exist, install the module, then try loading it again
+    ;; if the install fails, throw an error
+    (cond (mod
+	   (eval mod))
+	  (t
+	   (error "TODO - check install servers here. Fail if not found.")))))
+
+(defun load-by-name (name &key version)
+  (let ((res (sort 
+	      (for-all 
+	       `(and (?id :name ,(->wolf-name name)) 
+		     (?id :hash ?hash) (?id :registered ?stamp))
+	       :in *strap-wolf* 
+	       :collect (list ?stamp ?hash))
+	      #'> :key #'first)))
+    ;; If matching modules found, and designated version exists, install it
+    ;; If matching module found, and designated version doesn't exist, try to upgrade the module, then attempt installing ONCE more
+    ;; If no matching module found, try installing it
+    (cond ((and res version)
+	   (let ((loaded? nil))
+	     (loop for (stamp hash) in res
+		when (>= version stamp) do (setf loaded? (load-by-hash hash))
+		until (>= version stamp))
+	     (unless loaded? 
+	       (error "No version ~s found for module ~s..." version name))))
+	  (res
+	   (load-by-hash (cadar res)))
+	  (t
+	   (error "TODO - check install servers, fail if not found")))))
+
+(defmethod dependencies-of ((name symbol))
+  (for-all
+   `(and (?id :name ,(->wolf-name name))
+	 (?id :depends-on ?hash))
+   :in *strap-wolf* :collect ?hash))
 
 (defmethod module-exists? ((name symbol))
   (for-all 

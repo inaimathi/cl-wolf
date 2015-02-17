@@ -5,8 +5,8 @@
   (:import-from #:split-sequence :split-sequence)
   (:import-from #:alexandria :with-gensyms)
   (:export #:module #:container #:reactor
-	   #:in! #:out! #:->
-	   #:tag #:message #:self))
+	   #:load-by-name #:load-by-hash #:dependencies-of
+	   #:in! #:out! #:-> #:tag #:message #:self))
 
 (in-package #:cl-wolf)
 (defparameter *module-base* 

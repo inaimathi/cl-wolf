@@ -21,17 +21,23 @@ Together, those three will allow a great deal of flexibility in system design, w
 	1. queue intervening requests
 	2. drop intervening requests
 - figure out what to do about reactors that pull in a loop (or decide to disallow them)
+- figure out what to do about the scheduler
+	- we want the server example to work. Should I just bite the bullet and use libevent/libev bindings?
 
 ##### Module-related
 
+- re-jig module a bit to allow child parts to be passed as arguments to containers.
+	- change the dependency finder correspondingly to ignore those requirements
+- as it stands, a container doesn't guarantee consistency of its part tree
+	- this is because we designate child parts by factory call
+	- if we wanted to, we could additionally start designating child parts by hash (since these hashes would then be part of the container body, the containers' hash now guarantees its full tree)
+	- this might have a downside for automated regression testing 
 - think seriously about how a module server would look
 	- you may end up replacing some local module stuff with calls out to the local server
 	- this might be a better fit for a separate project `revres-wolf` or something, in keeping with the theme
 - do we want dependencies to be specified by `hash`, or `name`?
 	- one of our use cases is going to be automatically testing parts against new versions of their dependencies.
 	- to be fair, thanks to the `fact-base` back-end, it's still possible to do that with a `hash` association.
-- figure out what to do about the scheduler
-	- we want the server example to work. Should I just bite the bullet and use libevent/libev bindings?
 - publish the module to a remote server
 	- need some kind of user tag, so that we can identify later versions of the same part
 	- modules should automatically be published locally if the local server is running
