@@ -34,7 +34,7 @@
   (let ((res (sort 
 	      (for-all 
 	       `(and (?id :name ,(->wolf-name name))
-		     ,@(when by (list by))
+		     ,@(when by `(?id :author ,by))
 		     (?id :hash ?hash) (?id :registered ?stamp))
 	       :in *strap-wolf* 
 	       :collect (list ?stamp ?hash))
@@ -92,7 +92,7 @@
 	      (register-module! ',name ',args ',body)))
 	  (t
 	   `(progn
-	      (alias-function ',name ',alias)
+	      (alias-function ',name ',(intern (second alias) (first alias)))
 	      (register-module! ',name ',args ',body))))))
 
 (defun register-module! (name args body)
