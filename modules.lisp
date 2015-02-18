@@ -5,6 +5,8 @@
       (load! *module-base*)
       (make-fact-base :file-name *module-base*)))
 
+(defparameter *resu-wolf* "inaimathi")
+
 (defun install-module (name &key server)
   ;; check install servers for given module. Install if they existz
   nil)
@@ -18,20 +20,21 @@
 	      `(and (?id :name (?package ?name))
 		    (?id :hash ,hash)
 		    (?id :parameters ?args) (?id :source ?body))
-	      :in *strap-wolf* :do (return `(module ,(intern ?name) ,?args ,@?body)))))
-    ;; if module exists, and has dependencies, load them first, then load the module
-    ;; if module exists and has no dependencies, load it
-    ;; if module doesn't exist, install the module, then try loading it again
-    ;; if the install fails, throw an error
-    (cond (mod
+	      :in *strap-wolf* :do (return `(module ,(intern ?name) ,?args ,@?body))))
+	(deps (dependencies-of hash)))
+    (cond ((and mod deps)
+	   (loop for d in deps 
+	      do (format t "Loading dependency ~a ...~%" d)
+	      do (load-by-hash d))
 	   (eval mod))
-	  (t
-	   (error "TODO - check install servers here. Fail if not found.")))))
+	  (mod (eval mod))
+	  (t (error "TODO - check install servers here. Fail if not found.")))))
 
-(defun load-by-name (name &key version)
+(defun load-by-name (name &key at by)
   (let ((res (sort 
 	      (for-all 
-	       `(and (?id :name ,(->wolf-name name)) 
+	       `(and (?id :name ,(->wolf-name name))
+		     ,@(when by (list by))
 		     (?id :hash ?hash) (?id :registered ?stamp))
 	       :in *strap-wolf* 
 	       :collect (list ?stamp ?hash))
@@ -39,23 +42,27 @@
     ;; If matching modules found, and designated version exists, install it
     ;; If matching module found, and designated version doesn't exist, try to upgrade the module, then attempt installing ONCE more
     ;; If no matching module found, try installing it
-    (cond ((and res version)
+    (cond ((and res at)
 	   (let ((loaded? nil))
 	     (loop for (stamp hash) in res
-		when (>= version stamp) do (setf loaded? (load-by-hash hash))
-		until (>= version stamp))
+		when (>= at stamp) do (setf loaded? (load-by-hash hash))
+		until (>= at stamp))
 	     (unless loaded? 
-	       (error "No version ~s found for module ~s..." version name))))
+	       (error "No version available at ~s for module ~s..." at name))))
 	  (res
 	   (load-by-hash (cadar res)))
 	  (t
 	   (error "TODO - check install servers, fail if not found")))))
 
+(defmethod dependencies-of ((hash string))
+  (for-all `(and (?id :hash ,hash)
+		 (?id :depends-on ?hash))
+	   :in *strap-wolf* :collect ?hash))
+
 (defmethod dependencies-of ((name symbol))
-  (for-all
-   `(and (?id :name ,(->wolf-name name))
-	 (?id :depends-on ?hash))
-   :in *strap-wolf* :collect ?hash))
+  (for-all `(and (?id :name ,(->wolf-name name))
+		 (?id :depends-on ?hash))
+	   :in *strap-wolf* :collect ?hash))
 
 (defmethod module-exists? ((name symbol))
   (for-all 
